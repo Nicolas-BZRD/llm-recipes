@@ -16,9 +16,9 @@ class train_config:
     context_length: int=None
     gradient_accumulation_steps: int=1
     num_epochs: int=3
-    num_workers_dataloader: int=1
-    lr: float=1e-4
-    weight_decay: float=0.0
+    num_workers_dataloader: int=2
+    lr: float=1e-5
+    weight_decay: float=0.05
     gamma: float= 0.85
     seed: int=42
     use_fp16: bool=False

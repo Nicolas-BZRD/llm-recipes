@@ -139,7 +139,10 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
                         optimizer.zero_grad()
                         pbar.update(1)
 
-                wandb.log({"loss": loss})
+                wandb.log({
+                    "train_loss": loss.detach().float(),
+                    "lr": optimizer.param_groups[0]['lr'].float()
+                    })
                 pbar.set_description(f"Training Epoch: {epoch+1}/{train_config.num_epochs}, step {step}/{len(train_dataloader)} completed (loss: {loss.detach().float()})")
             pbar.close()
 
@@ -179,6 +182,7 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
             if train_config.save_model and eval_epoch_loss < best_val_loss:
                 if train_config.enable_fsdp:
                     dist.barrier()
+
                 if train_config.use_peft:
                     if train_config.enable_fsdp:
                         if rank==0:
@@ -191,8 +195,7 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
                             print(f"PEFT modules are saved in {train_config.output_dir} directory")
                     else:
                         print(f"PEFT modules are saved in {train_config.output_dir} directory")
-
-                else:
+                elif fsdp_config:
                     if not train_config.use_peft and fsdp_config.checkpoint_type == StateDictType.FULL_STATE_DICT:
 
                         save_model_checkpoint(
@@ -208,12 +211,17 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
                             print(" Saving the FSDP model checkpoints and optimizer using SHARDED_STATE_DICT")
                             print("=====================================================")
 
-                    if not train_config.use_peft and  train_config.save_optimizer:
+                    if not train_config.use_peft and train_config.save_optimizer:
                         save_optimizer_checkpoint(
                             model, optimizer, rank, train_config, epoch=epoch
                         )
                         print(" Saving the FSDP model checkpoints and optimizer using FULL_STATE_DICT")
                         print("=====================================================")
+                else:
+                    print(f"we are about to save the model")
+                    model.save_pretrained(train_config.output_dir)
+                    print(f"Model are saved in {train_config.output_dir} directory")
+
                 if train_config.enable_fsdp:
                     dist.barrier()
             checkpoint_end_time = time.perf_counter() - checkpoint_start_time
@@ -230,8 +238,19 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
         if train_config.enable_fsdp:
             if rank==0:
                 print(f"Epoch {epoch+1}: train_perplexity={train_perplexity:.4f}, train_epoch_loss={train_epoch_loss:.4f}, epoch time {epoch_end_time}s")
+                wandb.log({
+                    "train_perplexity": train_perplexity,
+                    "train_epoch_loss": train_epoch_loss,
+                    "train_epoch_time": epoch_end_time
+                })
         else:
             print(f"Epoch {epoch+1}: train_perplexity={train_perplexity:.4f}, train_epoch_loss={train_epoch_loss:.4f}, epoch time {epoch_end_time}s")
+            wandb.log({
+                "train_perplexity": train_perplexity,
+                "train_epoch_loss": train_epoch_loss,
+                "train_epoch_time": epoch_end_time
+            })
+        
     avg_epoch_time = sum(epoch_times)/ len(epoch_times)
     avg_checkpoint_time = sum(checkpoint_times)/ len(checkpoint_times) if len(checkpoint_times) > 0 else 0
     avg_train_prep = sum(train_prep)/len(train_prep)
@@ -303,9 +322,17 @@ def evaluation(model,train_config, eval_dataloader, local_rank, tokenizer):
     # Print evaluation metrics
     if train_config.enable_fsdp:
         if local_rank==0:
-            print(f" {eval_ppl=} {eval_epoch_loss=}")
+            print(f" {eval_ppl} {eval_epoch_loss}")
+            wandb.log({
+                "eval_ppl": eval_ppl,
+                "eval_epoch_loss": eval_epoch_loss
+            })
     else:
-        print(f" {eval_ppl=} {eval_epoch_loss=}")
+        print(f" {eval_ppl} {eval_epoch_loss}")
+        wandb.log({
+            "eval_ppl": eval_ppl,
+            "eval_epoch_loss": eval_epoch_loss
+        })
 
     return eval_ppl, eval_epoch_loss
 
