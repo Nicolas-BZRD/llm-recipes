@@ -141,7 +141,7 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
 
                 wandb.log({
                     "train_loss": loss.detach().float(),
-                    "lr": optimizer.param_groups[0]['lr'].float()
+                    "lr": optimizer.param_groups[0]['lr']
                     })
                 pbar.set_description(f"Training Epoch: {epoch+1}/{train_config.num_epochs}, step {step}/{len(train_dataloader)} completed (loss: {loss.detach().float()})")
             pbar.close()
