@@ -23,7 +23,10 @@ def load_module_from_py_file(py_file: str) -> object:
 
 
 def get_custom_dataset(dataset_config, tokenizer, split: str):
-    module_path, func_name = Path(dataset_config.file+"/load.py"), "get_custom_dataset"
+    if dataset_config.file.endswith('.py'):
+        module_path, func_name = Path(dataset_config.file), "get_custom_dataset"
+    else:
+        module_path, func_name = Path(dataset_config.file+"/load.py"), "get_custom_dataset"
         
     if not module_path:
         raise ValueError(f"Dataset not specified.")
