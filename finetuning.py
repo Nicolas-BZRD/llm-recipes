@@ -219,7 +219,8 @@ def main(**kwargs):
             lr=train_config.lr,
             weight_decay=train_config.weight_decay,
         )
-    scheduler = StepLR(optimizer, step_size=1, gamma=train_config.gamma)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=5e-6, total_steps=len(train_dataloader)*train_config.batch_size_training, pct_start=train_config.pct_start, div_factor=train_config.div_factor, final_div_factor=train_config.final_div_factor)
+
 
     # Start the training process
     results = train(

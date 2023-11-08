@@ -69,7 +69,9 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
             "num_workers_dataloader": train_config.num_workers_dataloader,
             "lr": train_config.lr,
             "weight_decay": train_config.weight_decay,
-            "gamma": train_config.gamma,
+            "pct_start": train_config.pct_start,
+            "div_factor": train_config.div_factor,
+            "final_div_factor": train_config.final_div_factor,
             "seed": train_config.seed,
             "use_fp16": train_config.use_fp16,
             "mixed_precision": train_config.mixed_precision,
@@ -106,6 +108,7 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
     checkpoint_times = []
     results = {}
     best_val_loss = float("inf")
+    number_step = len(train_dataloader)
     for epoch in range(train_config.num_epochs):
         epoch_start_time = time.perf_counter()
         with MemoryTrace() as memtrace:  # track the memory usage
@@ -139,10 +142,84 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
                         optimizer.zero_grad()
                         pbar.update(1)
 
+                if train_config.run_validation and ((step+1)%train_config.save_step==0 or step+1 == number_step):
+                    eval_ppl, eval_epoch_loss = evaluation(model, train_config, eval_dataloader, local_rank, tokenizer)
+                    if train_config.enable_fsdp:
+                        if local_rank==0:
+                            print(f" {eval_ppl} {eval_epoch_loss}")
+                            wandb.log({
+                                "eval_ppl": eval_ppl,
+                                "eval_epoch_loss": eval_epoch_loss
+                            })
+                    else:
+                        print(f" {eval_ppl} {eval_epoch_loss}")
+                        wandb.log({
+                            "eval_ppl": eval_ppl,
+                            "eval_epoch_loss": eval_epoch_loss
+                        })
+
+                    checkpoint_start_time = time.perf_counter()
+                    if train_config.save_model and eval_epoch_loss < best_val_loss:
+                        if train_config.enable_fsdp:
+                            dist.barrier()
+                        if train_config.use_peft:
+                            if train_config.enable_fsdp:
+                                if rank==0:
+                                    print(f"we are about to save the PEFT modules")
+                            else:
+                                print(f"we are about to save the PEFT modules")
+                            model.save_pretrained(train_config.output_dir)
+                            if train_config.enable_fsdp:
+                                if rank==0:
+                                    print(f"PEFT modules are saved in {train_config.output_dir} directory")
+                            else:
+                                print(f"PEFT modules are saved in {train_config.output_dir} directory")
+                        elif fsdp_config:
+                            if not train_config.use_peft and fsdp_config.checkpoint_type == StateDictType.FULL_STATE_DICT:
+
+                                save_model_checkpoint(
+                                    model, optimizer, rank, train_config, epoch=epoch
+                                )
+                            elif not train_config.use_peft and fsdp_config.checkpoint_type == StateDictType.SHARDED_STATE_DICT:
+                                print(" Saving the FSDP model checkpoints using SHARDED_STATE_DICT")
+                                print("=====================================================")
+
+                                save_model_and_optimizer_sharded(model, rank, train_config)
+                                if train_config.save_optimizer:
+                                    save_model_and_optimizer_sharded(model, rank, train_config, optim=optimizer)
+                                    print(" Saving the FSDP model checkpoints and optimizer using SHARDED_STATE_DICT")
+                                    print("=====================================================")
+
+                            if not train_config.use_peft and train_config.save_optimizer:
+                                save_optimizer_checkpoint(
+                                    model, optimizer, rank, train_config, epoch=epoch
+                                )
+                                print(" Saving the FSDP model checkpoints and optimizer using FULL_STATE_DICT")
+                                print("=====================================================")
+                        else:
+                            print(f"we are about to save the model")
+                            model.save_pretrained(train_config.output_dir)
+                            print(f"Model are saved in {train_config.output_dir} directory")
+
+                        if train_config.enable_fsdp:
+                            dist.barrier()
+                    checkpoint_end_time = time.perf_counter() - checkpoint_start_time
+                    checkpoint_times.append(checkpoint_end_time)
+                    if eval_epoch_loss < best_val_loss:
+                        best_val_loss = eval_epoch_loss
+                        if train_config.enable_fsdp:
+                            if rank==0:
+                                print(f"best eval loss is {best_val_loss}")
+                        else:
+                            print(f"best eval loss is {best_val_loss}")
+                    val_loss.append(best_val_loss)
+                    val_prep.append(eval_ppl)
+                
                 wandb.log({
                     "train_loss": loss.detach().float(),
                     "lr": optimizer.param_groups[0]['lr']
-                    })
+                })
+                lr_scheduler.step()
                 pbar.set_description(f"Training Epoch: {epoch+1}/{train_config.num_epochs}, step {step}/{len(train_dataloader)} completed (loss: {loss.detach().float()})")
             pbar.close()
 
@@ -173,68 +250,6 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
             print(f"Cuda Malloc retires : {memtrace.cuda_malloc_retires}")
             print(f"CPU Total Peak Memory consumed during the train (max): {memtrace.cpu_peaked + memtrace.cpu_begin} GB")
 
-        # Update the learning rate as needed
-        lr_scheduler.step()
-
-        if train_config.run_validation:
-            eval_ppl, eval_epoch_loss = evaluation(model, train_config, eval_dataloader, local_rank, tokenizer)
-            checkpoint_start_time = time.perf_counter()
-            if train_config.save_model and eval_epoch_loss < best_val_loss:
-                if train_config.enable_fsdp:
-                    dist.barrier()
-
-                if train_config.use_peft:
-                    if train_config.enable_fsdp:
-                        if rank==0:
-                            print(f"we are about to save the PEFT modules")
-                    else:
-                        print(f"we are about to save the PEFT modules")
-                    model.save_pretrained(train_config.output_dir)
-                    if train_config.enable_fsdp:
-                        if rank==0:
-                            print(f"PEFT modules are saved in {train_config.output_dir} directory")
-                    else:
-                        print(f"PEFT modules are saved in {train_config.output_dir} directory")
-                elif fsdp_config:
-                    if not train_config.use_peft and fsdp_config.checkpoint_type == StateDictType.FULL_STATE_DICT:
-
-                        save_model_checkpoint(
-                            model, optimizer, rank, train_config, epoch=epoch
-                        )
-                    elif not train_config.use_peft and fsdp_config.checkpoint_type == StateDictType.SHARDED_STATE_DICT:
-                        print(" Saving the FSDP model checkpoints using SHARDED_STATE_DICT")
-                        print("=====================================================")
-
-                        save_model_and_optimizer_sharded(model, rank, train_config)
-                        if train_config.save_optimizer:
-                            save_model_and_optimizer_sharded(model, rank, train_config, optim=optimizer)
-                            print(" Saving the FSDP model checkpoints and optimizer using SHARDED_STATE_DICT")
-                            print("=====================================================")
-
-                    if not train_config.use_peft and train_config.save_optimizer:
-                        save_optimizer_checkpoint(
-                            model, optimizer, rank, train_config, epoch=epoch
-                        )
-                        print(" Saving the FSDP model checkpoints and optimizer using FULL_STATE_DICT")
-                        print("=====================================================")
-                else:
-                    print(f"we are about to save the model")
-                    model.save_pretrained(train_config.output_dir)
-                    print(f"Model are saved in {train_config.output_dir} directory")
-
-                if train_config.enable_fsdp:
-                    dist.barrier()
-            checkpoint_end_time = time.perf_counter() - checkpoint_start_time
-            checkpoint_times.append(checkpoint_end_time)
-            if eval_epoch_loss < best_val_loss:
-                best_val_loss = eval_epoch_loss
-                if train_config.enable_fsdp:
-                    if rank==0:
-                        print(f"best eval loss on epoch {epoch+1} is {best_val_loss}")
-                else:
-                    print(f"best eval loss on epoch {epoch+1} is {best_val_loss}")
-            val_loss.append(best_val_loss)
-            val_prep.append(eval_ppl)
         if train_config.enable_fsdp:
             if rank==0:
                 print(f"Epoch {epoch+1}: train_perplexity={train_perplexity:.4f}, train_epoch_loss={train_epoch_loss:.4f}, epoch time {epoch_end_time}s")
@@ -318,21 +333,6 @@ def evaluation(model,train_config, eval_dataloader, local_rank, tokenizer):
     if train_config.enable_fsdp:
         eval_epoch_loss = eval_epoch_loss/world_size
     eval_ppl = torch.exp(eval_epoch_loss)
-
-    # Print evaluation metrics
-    if train_config.enable_fsdp:
-        if local_rank==0:
-            print(f" {eval_ppl} {eval_epoch_loss}")
-            wandb.log({
-                "eval_ppl": eval_ppl,
-                "eval_epoch_loss": eval_epoch_loss
-            })
-    else:
-        print(f" {eval_ppl} {eval_epoch_loss}")
-        wandb.log({
-            "eval_ppl": eval_ppl,
-            "eval_epoch_loss": eval_epoch_loss
-        })
 
     return eval_ppl, eval_epoch_loss
 
