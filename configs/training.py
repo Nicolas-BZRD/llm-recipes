@@ -19,8 +19,8 @@ class train_config:
     num_workers_dataloader: int=2
     lr: float=1e-6
     weight_decay: float=0.1
-    pct_start=0.1,
-    div_factor=2,
+    pct_start=0.1
+    div_factor=2
     final_div_factor=2.5
     seed: int=42
     use_fp16: bool=False
