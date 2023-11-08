@@ -52,44 +52,45 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
     """
 
     # Weights & Biases tracking system initialization.
-    wandb.init(
-        project = train_config.project_name,
-        name = f"{train_config.model_name.split('/')[-1]}_{dataset_config.file.split('/')[-1]}_{int(time.time())}",
-        config = {
-            "model_name": train_config.model_name.split('/')[-1],
-            "dataset": dataset_config.file.split('/')[-1],
-            "enable_fsdp": train_config.enable_fsdp,
-            "low_cpu_fsdp": train_config.low_cpu_fsdp,
-            "run_validation": train_config.run_validation,
-            "batch_size_training": train_config.batch_size_training,
-            "batching_strategy": train_config.batching_strategy,
-            "context_length": train_config.context_length,
-            "gradient_accumulation_steps": train_config.gradient_accumulation_steps,
-            "num_epochs": train_config.num_epochs,
-            "num_workers_dataloader": train_config.num_workers_dataloader,
-            "lr": train_config.lr,
-            "weight_decay": train_config.weight_decay,
-            "pct_start": train_config.pct_start,
-            "div_factor": train_config.div_factor,
-            "final_div_factor": train_config.final_div_factor,
-            "seed": train_config.seed,
-            "use_fp16": train_config.use_fp16,
-            "mixed_precision": train_config.mixed_precision,
-            "val_batch_size": train_config.val_batch_size,
-            "peft_method": train_config.peft_method,
-            "use_peft": train_config.use_peft,
-            "output_dir": train_config.output_dir,
-            "freeze_layers": train_config.freeze_layers,
-            "num_freeze_layers": train_config.num_freeze_layers,
-            "quantization": train_config.quantization,
-            "one_gpu": train_config.one_gpu,
-            "save_model": train_config.save_model,
-            "dist_checkpoint_root_folder": train_config.dist_checkpoint_root_folder,
-            "dist_checkpoint_folder": train_config.dist_checkpoint_folder,
-            "save_optimizer": train_config.save_optimizer,
-            "use_fast_kernels": train_config.use_fast_kernels,
-        }
-    )
+    if not train_config.enable_fsdp or (train_config.enable_fsdp and rank==0):
+        wandb.init(
+            project = train_config.project_name,
+            name = f"{train_config.model_name.split('/')[-1]}_{dataset_config.file.split('/')[-1]}_{int(time.time())}",
+            config = {
+                "model_name": train_config.model_name.split('/')[-1],
+                "dataset": dataset_config.file.split('/')[-1],
+                "enable_fsdp": train_config.enable_fsdp,
+                "low_cpu_fsdp": train_config.low_cpu_fsdp,
+                "run_validation": train_config.run_validation,
+                "batch_size_training": train_config.batch_size_training,
+                "batching_strategy": train_config.batching_strategy,
+                "context_length": train_config.context_length,
+                "gradient_accumulation_steps": train_config.gradient_accumulation_steps,
+                "num_epochs": train_config.num_epochs,
+                "num_workers_dataloader": train_config.num_workers_dataloader,
+                "lr": train_config.lr,
+                "weight_decay": train_config.weight_decay,
+                "pct_start": train_config.pct_start,
+                "div_factor": train_config.div_factor,
+                "final_div_factor": train_config.final_div_factor,
+                "seed": train_config.seed,
+                "use_fp16": train_config.use_fp16,
+                "mixed_precision": train_config.mixed_precision,
+                "val_batch_size": train_config.val_batch_size,
+                "peft_method": train_config.peft_method,
+                "use_peft": train_config.use_peft,
+                "output_dir": train_config.output_dir,
+                "freeze_layers": train_config.freeze_layers,
+                "num_freeze_layers": train_config.num_freeze_layers,
+                "quantization": train_config.quantization,
+                "one_gpu": train_config.one_gpu,
+                "save_model": train_config.save_model,
+                "dist_checkpoint_root_folder": train_config.dist_checkpoint_root_folder,
+                "dist_checkpoint_folder": train_config.dist_checkpoint_folder,
+                "save_optimizer": train_config.save_optimizer,
+                "use_fast_kernels": train_config.use_fast_kernels,
+            }
+        )
 
     # Create a gradient scaler for fp16
     if train_config.use_fp16 and train_config.enable_fsdp:
@@ -144,14 +145,7 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
 
                 if train_config.run_validation and ((step+1)%train_config.save_step==0 or step+1 == number_step):
                     eval_ppl, eval_epoch_loss = evaluation(model, train_config, eval_dataloader, local_rank, tokenizer)
-                    if train_config.enable_fsdp:
-                        if local_rank==0:
-                            print(f" {eval_ppl} {eval_epoch_loss}")
-                            wandb.log({
-                                "eval_ppl": eval_ppl,
-                                "eval_epoch_loss": eval_epoch_loss
-                            })
-                    else:
+                    if not train_config.enable_fsdp or (train_config.enable_fsdp and rank==0):
                         print(f" {eval_ppl} {eval_epoch_loss}")
                         wandb.log({
                             "eval_ppl": eval_ppl,
@@ -207,18 +201,15 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
                     checkpoint_times.append(checkpoint_end_time)
                     if eval_epoch_loss < best_val_loss:
                         best_val_loss = eval_epoch_loss
-                        if train_config.enable_fsdp:
-                            if rank==0:
-                                print(f"best eval loss is {best_val_loss}")
-                        else:
+                        if not train_config.enable_fsdp or (train_config.enable_fsdp and rank==0):
                             print(f"best eval loss is {best_val_loss}")
                     val_loss.append(best_val_loss)
                     val_prep.append(eval_ppl)
-                
-                wandb.log({
-                    "train_loss": loss.detach().float(),
-                    "lr": optimizer.param_groups[0]['lr']
-                })
+                if not train_config.enable_fsdp or (train_config.enable_fsdp and rank==0):
+                    wandb.log({
+                        "train_loss": loss.detach().float(),
+                        "lr": optimizer.param_groups[0]['lr']
+                    })                  
                 lr_scheduler.step()
                 pbar.set_description(f"Training Epoch: {epoch+1}/{train_config.num_epochs}, step {step}/{len(train_dataloader)} completed (loss: {loss.detach().float()})")
             pbar.close()
@@ -250,15 +241,7 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
             print(f"Cuda Malloc retires : {memtrace.cuda_malloc_retires}")
             print(f"CPU Total Peak Memory consumed during the train (max): {memtrace.cpu_peaked + memtrace.cpu_begin} GB")
 
-        if train_config.enable_fsdp:
-            if rank==0:
-                print(f"Epoch {epoch+1}: train_perplexity={train_perplexity:.4f}, train_epoch_loss={train_epoch_loss:.4f}, epoch time {epoch_end_time}s")
-                wandb.log({
-                    "train_perplexity": train_perplexity,
-                    "train_epoch_loss": train_epoch_loss,
-                    "train_epoch_time": epoch_end_time
-                })
-        else:
+        if not train_config.enable_fsdp or (train_config.enable_fsdp and rank==0):
             print(f"Epoch {epoch+1}: train_perplexity={train_perplexity:.4f}, train_epoch_loss={train_epoch_loss:.4f}, epoch time {epoch_end_time}s")
             wandb.log({
                 "train_perplexity": train_perplexity,
