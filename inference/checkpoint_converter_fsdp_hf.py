@@ -10,7 +10,7 @@ import yaml
 
 from transformers import LlamaTokenizer
 
-from inference.model_utils import  load_llama_from_config
+from model_utils import  load_llama_from_config
 
 # Get the current file's directory
 current_directory = os.path.dirname(os.path.abspath(__file__))
@@ -27,7 +27,6 @@ def main(
     consolidated_model_path="", # Path to save the HF converted model checkpoints
     HF_model_path_or_name="" # Path/ name of the HF model that include config.json and tokenizer_config.json (e.g. meta-llama/Llama-2-7b-chat-hf)
     ):
-    
     try:
         file_name = 'train_params.yaml'
         # Combine the directory and file name to create the full path
