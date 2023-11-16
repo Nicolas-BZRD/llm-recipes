@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# This software may be used and distributed according to the terms of the Llama 2 Community License Agreement.
-
 import os
-from pkg_resources import packaging
 
 import fire
 import random
@@ -13,9 +9,12 @@ from configs import fsdp_config as FSDP_CONFIG
 from configs import train_config as TRAIN_CONFIG
 from configs import distillation_config as DISTIL_CONFIG
 from data.concatenator import ConcatDataset
+from policies import AnyPrecisionAdamW
 
 from utils.config_utils import (
-    update_config,    generate_dataset_config,
+    update_config,
+    update_sub_config,
+    generate_dataset_config,
     get_dataloader_kwargs,
 )
 from utils.dataset_utils import get_preprocessed_dataset
@@ -27,12 +26,17 @@ from utils.train_utils import (
     clear_gpu_cache,
 )
 
-from utils.model_utils import load_model
+from utils.model_utils import (
+    prepare_model,
+    prepare_model_distillation
+)
+
 
 def main(**kwargs):
     # Update the configuration for the training and sharding process
     train_config, fsdp_config, distil_config = TRAIN_CONFIG(), FSDP_CONFIG(), DISTIL_CONFIG()
-    update_config((train_config, fsdp_config, distil_config), **kwargs)
+    update_config((train_config, fsdp_config), **kwargs)
+    update_sub_config((distil_config), **kwargs)
 
     # Set the seeds for reproducibility
     torch.cuda.manual_seed(train_config.seed)
@@ -44,13 +48,20 @@ def main(**kwargs):
         # torchrun specific
         local_rank = int(os.environ["LOCAL_RANK"])
         rank = int(os.environ["RANK"])
+    else:
+        rank = 0
 
     if torch.distributed.is_initialized():
         torch.cuda.set_device(local_rank)
         clear_gpu_cache(local_rank)
         setup_environ_flags(rank)
 
-    tokenizer, model = load_model(train_config, fsdp_config, rank, kwargs)
+    if not train_config.distillation:
+        tokenizer, model = prepare_model(
+            train_config, fsdp_config, rank, kwargs)
+    else:
+        tokenizer, model = prepare_model_distillation(
+            train_config, distil_config, fsdp_config, rank, kwargs)
 
     dataset_config = generate_dataset_config(train_config, kwargs)
 
@@ -70,12 +81,14 @@ def main(**kwargs):
         split="test",
     )
     if not train_config.enable_fsdp or rank == 0:
-            print(f"--> Validation Set Length = {len(dataset_val)}")
+        print(f"--> Validation Set Length = {len(dataset_val)}")
 
     if train_config.batching_strategy == "packing":
-        dataset_train = ConcatDataset(dataset_train, chunk_size=train_config.context_length)
+        dataset_train = ConcatDataset(
+            dataset_train, chunk_size=train_config.context_length)
 
-    train_dl_kwargs = get_dataloader_kwargs(train_config, dataset_train, tokenizer, "train")
+    train_dl_kwargs = get_dataloader_kwargs(
+        train_config, dataset_train, tokenizer, "train")
 
     # Create DataLoaders for the training and validation dataset
     train_dataloader = torch.utils.data.DataLoader(
@@ -88,9 +101,11 @@ def main(**kwargs):
     eval_dataloader = None
     if train_config.run_validation:
         if train_config.batching_strategy == "packing":
-            dataset_val = ConcatDataset(dataset_val, chunk_size=train_config.context_length)
+            dataset_val = ConcatDataset(
+                dataset_val, chunk_size=train_config.context_length)
 
-        val_dl_kwargs = get_dataloader_kwargs(train_config, dataset_val, tokenizer, "val")
+        val_dl_kwargs = get_dataloader_kwargs(
+            train_config, dataset_val, tokenizer, "val")
 
         eval_dataloader = torch.utils.data.DataLoader(
             dataset_val,
@@ -115,8 +130,8 @@ def main(**kwargs):
             lr=train_config.lr,
             weight_decay=train_config.weight_decay,
         )
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=train_config.lr, epochs=train_config.num_epochs, steps_per_epoch=len(train_dataloader), pct_start=train_config.pct_start, div_factor=train_config.div_factor, final_div_factor=train_config.final_div_factor)
-
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=train_config.lr, epochs=train_config.num_epochs, steps_per_epoch=len(
+        train_dataloader), pct_start=train_config.pct_start, div_factor=train_config.div_factor, final_div_factor=train_config.final_div_factor)
 
     # Start the training process
     results = train(
@@ -133,8 +148,9 @@ def main(**kwargs):
         local_rank if train_config.enable_fsdp else None,
         rank if train_config.enable_fsdp else None,
     )
-    if not train_config.enable_fsdp or rank==0:
+    if not train_config.enable_fsdp or rank == 0:
         [print(f'Key: {k}, Value: {v}') for k, v in results.items()]
+
 
 if __name__ == "__main__":
     fire.Fire(main)
