@@ -3,10 +3,13 @@
 
 import os
 import importlib
-from functools import partial
 from pathlib import Path
 
 import torch
+
+from data.concatenator import ConcatDataset
+
+from utils.config_utils import generate_dataset_config, get_dataloader_kwargs
 
 def load_module_from_py_file(py_file: str) -> object:
     """
@@ -23,6 +26,9 @@ def load_module_from_py_file(py_file: str) -> object:
 
 
 def get_custom_dataset(dataset_config, tokenizer, split: str):
+    if not dataset_config.file:
+        raise ValueError(f"Dataset not specified.")
+
     if dataset_config.file.endswith('.py'):
         module_path, func_name = Path(dataset_config.file), "get_custom_dataset"
     else:
@@ -56,3 +62,62 @@ def get_preprocessed_dataset(
         tokenizer,
         get_split(),
     )
+
+def get_dataloader(train_config, tokenizer, kwargs, rank):
+    dataset_config = generate_dataset_config(train_config, kwargs)
+
+    # Load and preprocess the dataset for training and validation
+    dataset_train = get_preprocessed_dataset(
+        tokenizer,
+        dataset_config,
+        split="train",
+    )
+
+    if not train_config.enable_fsdp or rank == 0:
+        print(f"--> Training Set Length = {len(dataset_train)}")
+
+    dataset_val = get_preprocessed_dataset(
+        tokenizer,
+        dataset_config,
+        split="test",
+    )
+    if not train_config.enable_fsdp or rank == 0:
+        print(f"--> Validation Set Length = {len(dataset_val)}")
+
+    if train_config.batching_strategy == "packing":
+        dataset_train = ConcatDataset(
+            dataset_train, chunk_size=train_config.context_length)
+
+    train_dl_kwargs = get_dataloader_kwargs(
+        train_config, dataset_train, tokenizer, "train")
+
+    # Create DataLoaders for the training and validation dataset
+    train_dataloader = torch.utils.data.DataLoader(
+        dataset_train,
+        num_workers=train_config.num_workers_dataloader,
+        pin_memory=True,
+        **train_dl_kwargs,
+    )
+
+    eval_dataloader = None
+    if train_config.run_validation:
+        if train_config.batching_strategy == "packing":
+            dataset_val = ConcatDataset(
+                dataset_val, chunk_size=train_config.context_length)
+
+        val_dl_kwargs = get_dataloader_kwargs(
+            train_config, dataset_val, tokenizer, "val")
+
+        eval_dataloader = torch.utils.data.DataLoader(
+            dataset_val,
+            num_workers=train_config.num_workers_dataloader,
+            pin_memory=True,
+            **val_dl_kwargs,
+        )
+
+    return train_dataloader, eval_dataloader
+
+def get_dataloader_distillation(train_config, student_tokenizer, teacher_tokenizer, kwargs, rank):
+    student_train_dataloader, student_eval_dataloader = get_dataloader(train_config, student_tokenizer, kwargs, rank)
+    teacher_train_dataloader, teacher_eval_dataloader = get_dataloader(train_config, teacher_tokenizer, kwargs, rank)
+    return len(student_train_dataloader), zip(student_train_dataloader, teacher_train_dataloader), zip(student_eval_dataloader, teacher_eval_dataloader)

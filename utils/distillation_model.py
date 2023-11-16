@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import transformers
 
 class DistilModel(nn.Module):
     def __init__(self, student, teacher):
@@ -9,30 +8,35 @@ class DistilModel(nn.Module):
         self.student = student
         self.teacher = teacher
 
-        self._studentLogits = None
-        self._teacherLogits = None
-        self._studentLabels = None
-        self._teacherLabels = None
-
-    def forward(self, input_ids_student, attention_mask_student, labels_student, input_ids_teacher, attention_mask_teacher, labels_teacher):
+    def forward(self, student_input_ids, student_attention_mask, student_labels, teacher_input_ids, teacher_attention_mask, teacher_labels):
         with torch.no_grad():            
-            self._teacherLogits = self.teacher(
-                input_ids = input_ids_teacher,
-                attention_mask = attention_mask_teacher,
-                labels = labels_teacher
-            ).logits
+            teacher_output = self.teacher(
+                input_ids = teacher_input_ids,
+                attention_mask = teacher_attention_mask,
+                labels = teacher_labels
+            )
 
-        self._studentLogits = self.student(
-            input_ids = input_ids_student,
-            attention_mask = attention_mask_student,
-            labels = labels_student
-        ).logits
+        student_output = self.student(
+            input_ids = student_input_ids,
+            attention_mask = student_attention_mask,
+            labels = student_labels
+        )
+        return student_output, teacher_output
 
-        self._studentLabels = labels_student
-        self._teacherLabels = labels_teacher
+def distil_loss(student_output, teacher_output, student_labels, teacher_labels, Alpha=1, Beta=1, T=1, mask_labels=-100):
+    print(student_output)
+    student = torch.nn.functional.softmax(student_output.logits / T, dim=-1).sort(dim=-1, descending=True).values
+    student_mask = (student_labels != mask_labels)
+    student = student_mask.unsqueeze(2) * student
 
-        return self._studentLogits, self._teacherLogits
 
-    @property
-    def loss():
-        return 1
+    teacher = torch.nn.functional.softmax(teacher_output.logits / T, dim=-1).sort(dim=-1, descending=True).values
+    teacher_mask = (teacher_labels != mask_labels)
+    teacher = teacher_mask.unsqueeze(2) * teacher
+
+    for dim in [1,2]:
+        min_size = min(teacher.size(dim), student.size(dim))
+        student = torch.narrow(student, dim, 0, min_size)
+        teacher = torch.narrow(teacher, dim, 0, min_size)
+
+    return (Alpha * student_output.loss) + (Beta * abs(student-teacher).sum(dim=-1).mean()**T)

@@ -152,4 +152,4 @@ def prepare_model_distillation(train_config, distil_config, fsdp_config, rank, k
     teacher_model = set_model(
         teacher_model, distil_config, fsdp_config, rank, kwargs)
 
-    return (student_tokenizer, teacher_tokenizer), DistilModel(student_model, teacher_model)
+    return student_tokenizer, teacher_tokenizer, DistilModel(student_model, teacher_model)

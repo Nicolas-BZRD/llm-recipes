@@ -8,16 +8,16 @@ import torch.optim as optim
 from configs import fsdp_config as FSDP_CONFIG
 from configs import train_config as TRAIN_CONFIG
 from configs import distillation_config as DISTIL_CONFIG
-from data.concatenator import ConcatDataset
 from policies import AnyPrecisionAdamW
 
 from utils.config_utils import (
     update_config,
-    update_sub_config,
-    generate_dataset_config,
-    get_dataloader_kwargs,
+    update_sub_config
 )
-from utils.dataset_utils import get_preprocessed_dataset
+from utils.dataset_utils import (
+    get_dataloader,
+    get_dataloader_distillation
+)
 
 from utils.train_utils import (
     train,
@@ -30,7 +30,9 @@ from utils.model_utils import (
     prepare_model,
     prepare_model_distillation
 )
+from utils.config_utils import generate_dataset_config
 
+os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 def main(**kwargs):
     # Update the configuration for the training and sharding process
@@ -56,63 +58,22 @@ def main(**kwargs):
         clear_gpu_cache(local_rank)
         setup_environ_flags(rank)
 
+    # Load Model and Tokenizer
     if not train_config.distillation:
         tokenizer, model = prepare_model(
             train_config, fsdp_config, rank, kwargs)
     else:
-        tokenizer, model = prepare_model_distillation(
+        student_tokenizer, teacher_tokenizer, model = prepare_model_distillation(
             train_config, distil_config, fsdp_config, rank, kwargs)
+    print(model)
 
-    dataset_config = generate_dataset_config(train_config, kwargs)
-
-    # Load and preprocess the dataset for training and validation
-    dataset_train = get_preprocessed_dataset(
-        tokenizer,
-        dataset_config,
-        split="train",
-    )
-
-    if not train_config.enable_fsdp or rank == 0:
-        print(f"--> Training Set Length = {len(dataset_train)}")
-
-    dataset_val = get_preprocessed_dataset(
-        tokenizer,
-        dataset_config,
-        split="test",
-    )
-    if not train_config.enable_fsdp or rank == 0:
-        print(f"--> Validation Set Length = {len(dataset_val)}")
-
-    if train_config.batching_strategy == "packing":
-        dataset_train = ConcatDataset(
-            dataset_train, chunk_size=train_config.context_length)
-
-    train_dl_kwargs = get_dataloader_kwargs(
-        train_config, dataset_train, tokenizer, "train")
-
-    # Create DataLoaders for the training and validation dataset
-    train_dataloader = torch.utils.data.DataLoader(
-        dataset_train,
-        num_workers=train_config.num_workers_dataloader,
-        pin_memory=True,
-        **train_dl_kwargs,
-    )
-
-    eval_dataloader = None
-    if train_config.run_validation:
-        if train_config.batching_strategy == "packing":
-            dataset_val = ConcatDataset(
-                dataset_val, chunk_size=train_config.context_length)
-
-        val_dl_kwargs = get_dataloader_kwargs(
-            train_config, dataset_val, tokenizer, "val")
-
-        eval_dataloader = torch.utils.data.DataLoader(
-            dataset_val,
-            num_workers=train_config.num_workers_dataloader,
-            pin_memory=True,
-            **val_dl_kwargs,
-        )
+    # Load Data
+    if not train_config.distillation:
+        steps_per_epoch, train_dataloader, eval_dataloader = get_dataloader(
+            train_config, tokenizer, kwargs, rank)
+    else:
+        steps_per_epoch, train_dataloader, eval_dataloader = get_dataloader_distillation(
+            train_config, student_tokenizer, teacher_tokenizer, kwargs, rank)
 
     # Initialize the optimizer and learning rate scheduler
     if fsdp_config.pure_bf16 and fsdp_config.optimizer == "anyprecision":
@@ -130,20 +91,22 @@ def main(**kwargs):
             lr=train_config.lr,
             weight_decay=train_config.weight_decay,
         )
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=train_config.lr, epochs=train_config.num_epochs, steps_per_epoch=len(
-        train_dataloader), pct_start=train_config.pct_start, div_factor=train_config.div_factor, final_div_factor=train_config.final_div_factor)
+
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=train_config.lr, epochs=train_config.num_epochs, steps_per_epoch=steps_per_epoch,
+                                                    pct_start=train_config.pct_start, div_factor=train_config.div_factor, final_div_factor=train_config.final_div_factor)
 
     # Start the training process
     results = train(
         model,
         train_dataloader,
         eval_dataloader,
-        tokenizer,
+        student_tokenizer if train_config.distillation else tokenizer,
         optimizer,
         scheduler,
         train_config.gradient_accumulation_steps,
         train_config,
-        dataset_config,
+        generate_dataset_config(train_config, kwargs),
+        steps_per_epoch,
         fsdp_config if train_config.enable_fsdp else None,
         local_rank if train_config.enable_fsdp else None,
         rank if train_config.enable_fsdp else None,
