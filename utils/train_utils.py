@@ -34,7 +34,7 @@ def byte2mb(x):
     return int(x / 2**20)
 
 
-def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_scheduler, gradient_accumulation_steps, train_config, dataset_config, steps_per_epoch, fsdp_config=None, local_rank=None, rank=None):
+def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_scheduler, gradient_accumulation_steps, train_config, distil_config, dataset_config, steps_per_epoch, fsdp_config=None, local_rank=None, rank=None):
     """
     Trains the model on the given dataloader
 
@@ -54,7 +54,7 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
     """
 
     # Weights & Biases tracking system initialization.
-    if not train_config.enable_fsdp or (train_config.enable_fsdp and rank == 0):
+    if rank == 0:
         wandb.init(
             project=train_config.project_name,
             name=f"{train_config.model_name.split('/')[-1]}_{dataset_config.file.split('/')[-1]}_{int(time.time())}",
@@ -99,7 +99,7 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
         scaler = ShardedGradScaler()
     elif train_config.use_fp16 and not train_config.enable_fsdp:
         scaler = torch.cuda.amp.GradScaler()
-    if train_config.enable_fsdp:
+    if train_config.enable_fsdp or distil_config.enable_fsdp:
         world_size = int(os.environ["WORLD_SIZE"])
     autocast = torch.cuda.amp.autocast if train_config.use_fp16 else nullcontext
 
@@ -123,7 +123,7 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
                 if train_config.distillation:
                     batch = preprocess_distillation_batch(batch)
                 for key in batch.keys():
-                    if train_config.enable_fsdp:
+                    if train_config.enable_fsdp or distil_config.enable_fsdp:
                         batch[key] = batch[key].to(local_rank)
                     else:
                         batch[key] = batch[key].to('cuda:0')
@@ -154,7 +154,7 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
                 if train_config.run_validation and ((step+1) % train_config.save_step == 0 or step+1 == steps_per_epoch):
                     eval_ppl, eval_epoch_loss = evaluation(
                         model, train_config, eval_dataloader, local_rank, tokenizer)
-                    if not train_config.enable_fsdp or (train_config.enable_fsdp and rank == 0):
+                    if rank == 0:
                         print(f" {eval_ppl} {eval_epoch_loss}")
                         wandb.log({
                             "eval_ppl": eval_ppl,
@@ -226,7 +226,7 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
                             print(f"best eval loss is {best_val_loss}")
                     val_loss.append(best_val_loss)
                     val_prep.append(eval_ppl)
-                if not train_config.enable_fsdp or (train_config.enable_fsdp and rank == 0):
+                if rank == 0:
                     wandb.log({
                         "train_loss": loss.detach().float(),
                         "lr": optimizer.param_groups[0]['lr']

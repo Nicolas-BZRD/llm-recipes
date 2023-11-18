@@ -24,7 +24,6 @@ class DistilModel(nn.Module):
         return student_output, teacher_output
 
 def distil_loss(student_output, teacher_output, student_labels, teacher_labels, Alpha=1, Beta=1, T=1, mask_labels=-100):
-    print(student_output)
     student = torch.nn.functional.softmax(student_output.logits / T, dim=-1).sort(dim=-1, descending=True).values
     student_mask = (student_labels != mask_labels)
     student = student_mask.unsqueeze(2) * student

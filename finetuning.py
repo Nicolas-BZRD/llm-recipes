@@ -1,5 +1,4 @@
 import os
-
 import fire
 import random
 import torch
@@ -14,6 +13,7 @@ from utils.config_utils import (
     update_config,
     update_sub_config
 )
+
 from utils.dataset_utils import (
     get_dataloader,
     get_dataloader_distillation
@@ -30,9 +30,11 @@ from utils.model_utils import (
     prepare_model,
     prepare_model_distillation
 )
+
 from utils.config_utils import generate_dataset_config
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
+
 
 def main(**kwargs):
     # Update the configuration for the training and sharding process
@@ -45,9 +47,8 @@ def main(**kwargs):
     torch.manual_seed(train_config.seed)
     random.seed(train_config.seed)
 
-    if train_config.enable_fsdp:
+    if train_config.enable_fsdp or distil_config.enable_fsdp:
         setup()
-        # torchrun specific
         local_rank = int(os.environ["LOCAL_RANK"])
         rank = int(os.environ["RANK"])
     else:
@@ -65,7 +66,8 @@ def main(**kwargs):
     else:
         student_tokenizer, teacher_tokenizer, model = prepare_model_distillation(
             train_config, distil_config, fsdp_config, rank, kwargs)
-    print(model)
+    if rank == 0:
+        print(model)
 
     # Load Data
     if not train_config.distillation:
@@ -105,11 +107,12 @@ def main(**kwargs):
         scheduler,
         train_config.gradient_accumulation_steps,
         train_config,
+        distil_config,
         generate_dataset_config(train_config, kwargs),
         steps_per_epoch,
         fsdp_config if train_config.enable_fsdp else None,
-        local_rank if train_config.enable_fsdp else None,
-        rank if train_config.enable_fsdp else None,
+        local_rank if train_config.enable_fsdp or distil_config.enable_fsdp else None,
+        rank,
     )
     if not train_config.enable_fsdp or rank == 0:
         [print(f'Key: {k}, Value: {v}') for k, v in results.items()]
