@@ -4,8 +4,11 @@ import numpy as np
 from itertools import islice
 
 
+import random
+
+
 class LengthBasedBatchSampler(torch.utils.data.BatchSampler):
-    def __init__(self, data_source, batch_size: int, drop_last: bool, shuffle: bool = True) -> None:
+    def __init__(self, data_source, batch_size: int, drop_last: bool, shuffle: bool = True, seed: int = 0) -> None:
         if isinstance(next(iter(data_source)), dict):
             first_key = next(iter(next(iter(data_source)).keys()))
             self.lengths = [len(d[first_key]) for d in data_source]
@@ -14,6 +17,7 @@ class LengthBasedBatchSampler(torch.utils.data.BatchSampler):
         self.batch_size = batch_size
         self.drop_last = drop_last
         self.shuffle = shuffle
+        self.seed = seed
 
     def __iter__(self):
         ids = np.argsort(self.lengths)
@@ -24,6 +28,7 @@ class LengthBasedBatchSampler(torch.utils.data.BatchSampler):
                    for i in range(0, len(ids), self.batch_size)]
 
         if self.shuffle:
+            random.seed(self.seed)
             random.shuffle(batches)
 
         for b in batches:

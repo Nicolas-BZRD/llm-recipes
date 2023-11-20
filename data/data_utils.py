@@ -6,6 +6,7 @@ from pathlib import Path
 from data.concatenator import ConcatDataset
 from configs.configs_utils import get_dataloader_kwargs
 
+
 def load_module_from_py_file(py_file: str) -> object:
     """
     This method loads a module from a py file which is not in the Python path
@@ -18,18 +19,21 @@ def load_module_from_py_file(py_file: str) -> object:
     loader.exec_module(module)
     return module
 
+
 def get_dataset(dataset_config, tokenizer, split: str) -> torch.utils.data.Dataset:
     if not dataset_config.file:
         raise ValueError(
             f"Dataset not specified. Please select a dataset path with the parameter '--dataset.file'.")
 
-    if not dataset_config.file.endswith('.py'):
-        dataset_config.file += "/load.py"
-    module_path, func_name = Path(dataset_config.file), "get_split"
+    if dataset_config.file.endswith('.py'):
+        module_path, func_name = Path(dataset_config.file), "get_split"
+    else:
+        module_path, func_name = Path(
+            dataset_config.file+"/load.py"), "get_split"
 
     if not os.path.isfile(module_path):
         raise ValueError(
-            f"The load.py file in the dataset folder or the path to a python loading file doesn't exist.")
+            f"The load.py file in the dataset folder or the path to a python loading file doesn't exist. {module_path}")
     module = load_module_from_py_file(module_path.as_posix())
 
     try:
@@ -37,6 +41,7 @@ def get_dataset(dataset_config, tokenizer, split: str) -> torch.utils.data.Datas
     except:
         raise ValueError(
             f"It seems like the given method name ({func_name}) is not present in the load.py file ({module_path.as_posix()}).")
+
 
 def get_dataloader(dataset_config, train_config, tokenizer, rank):
     dataset_train = get_dataset(
@@ -83,6 +88,7 @@ def get_dataloader(dataset_config, train_config, tokenizer, rank):
         return train_dataloader, eval_dataloader
     else:
         return train_dataloader, None
+
 
 def get_distillation_dataloader(dataset_config, train_config, student_tokenizer, teacher_tokenizer, rank):
     student_train_dataloader, student_eval_dataloader = get_dataloader(

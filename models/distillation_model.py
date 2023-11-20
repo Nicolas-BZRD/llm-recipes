@@ -23,11 +23,10 @@ class DistilModel(nn.Module):
         )
         return student_output, teacher_output
 
-def distil_loss(student_output, teacher_output, student_labels, teacher_labels, Alpha=1, Beta=1, T=1, mask_labels=-100):
+def distil_loss(student_output, teacher_output, student_labels, teacher_labels, Alpha=1, Beta=10, T=1, mask_labels=-100):
     student = torch.nn.functional.softmax(student_output.logits / T, dim=-1).sort(dim=-1, descending=True).values
     student_mask = (student_labels != mask_labels)
     student = student_mask.unsqueeze(2) * student
-
 
     teacher = torch.nn.functional.softmax(teacher_output.logits / T, dim=-1).sort(dim=-1, descending=True).values
     teacher_mask = (teacher_labels != mask_labels)
@@ -38,9 +37,9 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
         student = torch.narrow(student, dim, 0, min_size)
         teacher = torch.narrow(teacher, dim, 0, min_size)
     
-    cross_loss = (Alpha * student_output.loss)
-    dist_loss = (Beta * abs(student-teacher).sum(dim=-1).mean()**T)
-    return cross_loss + dist_loss, cross_loss, dist_loss
+    cross_loss = Alpha * student_output.loss
+    dist_loss = Beta * abs(student-teacher).sum(dim=-1).mean()**T
+    return (cross_loss + dist_loss), cross_loss, dist_loss
 
 def preprocess_distillation_batch(batch):
     batch_dict = {"student_" + key: value for key, value in batch[0].items()}

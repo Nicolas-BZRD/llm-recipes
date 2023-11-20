@@ -112,12 +112,9 @@ def get_model(train_config, fsdp_config, rank, kwargs):
 
 def get_distillation_models(train_config, distil_config, fsdp_config, rank, kwargs):
     student_tokenizer, student_model = get_model(train_config, fsdp_config, rank, kwargs)
-
+    
     teacher_fsdp_config = FSDP_CONFIG()
     update_config((teacher_fsdp_config), **dataclasses.asdict(distil_config))
-    print(teacher_fsdp_config)
-    print(distil_config)
-    exit()
     teacher_tokenizer, teacher_model = get_model(distil_config, distil_config, rank, kwargs)
 
     return student_tokenizer, teacher_tokenizer, DistilModel(student_model, teacher_model)

@@ -14,6 +14,7 @@ from models.distillation_model import distil_loss, preprocess_distillation_batch
 
 def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_scheduler, gradient_accumulation_steps, train_config, distil_config, dataset_config, steps_per_epoch, fsdp_config=None, local_rank=None, rank=None):
     # Weights & Biases tracking system initialization.
+    os.environ["WANDB__SERVICE_WAIT"] = "300"
     if rank == 0:
         wandb.init(
             project=train_config.project_name,
@@ -90,7 +91,7 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
                 with autocast():
                     if train_config.distillation:
                         student_output, teacher_output = model(**batch)
-                        loss, cross_loss, dist_loss = distil_loss(student_output, teacher_output, batch['student_labels'], batch['teacher_labels'])
+                        loss, cross_loss, dist_loss = distil_loss(student_output, teacher_output, batch['student_labels'], batch['teacher_labels'], Alpha=distil_config.cross_entropy_factor, Beta=distil_config.distil_factor)
                     else:
                         loss = model(**batch).loss
 
@@ -115,7 +116,7 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
                         wandb.log({
                             "train_loss": loss.detach().float(),
                             "cross_loss": cross_loss.detach().float(),
-                            "distil_loss": dist_loss.detach().float,
+                            "distil_loss": dist_loss.detach().float(),
                             "lr": optimizer.param_groups[0]['lr']
                         })
                     else:
@@ -128,7 +129,8 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
                 pbar.set_description(f"Training Epoch: {epoch+1}/{train_config.num_epochs}, step {step}/{steps_per_epoch} completed (loss: {loss.detach().float()})")
 
                 if train_config.run_validation and ((step+1) % train_config.save_step == 0 or step+1 == steps_per_epoch):
-                    eval_ppl, eval_epoch_loss, eval_cross_loss, eval_dist_loss = evaluation(model, train_config, eval_dataloader, local_rank, tokenizer)
+                    if rank == 0: print("Running evaluation...")
+                    eval_ppl, eval_epoch_loss, eval_cross_loss, eval_dist_loss = evaluation(model, train_config, distil_config, eval_dataloader, local_rank)
                     if rank == 0:
                         print(f" {eval_ppl} {eval_epoch_loss}")
                         if train_config.distillation:
@@ -162,8 +164,8 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
         epoch_end_time = time.perf_counter()-epoch_start_time
         epoch_times.append(epoch_end_time)
 
-        # -----
-        if torch.cuda.device_count() > 1 and train_config.enable_fsdp:
+        # ----- TODO
+        if torch.cuda.device_count() > 1 and train_config.enable_fsdp or distil_config.enable_fsdp:
             dist.all_reduce(total_loss, op=dist.ReduceOp.SUM)
         train_epoch_loss = total_loss / steps_per_epoch
         if train_config.enable_fsdp:
