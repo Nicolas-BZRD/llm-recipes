@@ -1,12 +1,12 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 class DistilModel(nn.Module):
     def __init__(self, student, teacher):
         super().__init__()
         self.student = student
         self.teacher = teacher
+        self.teacher.eval()
 
     def forward(self, student_input_ids, student_attention_mask, student_labels, teacher_input_ids, teacher_attention_mask, teacher_labels):
         with torch.no_grad():            
@@ -37,5 +37,13 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
         min_size = min(teacher.size(dim), student.size(dim))
         student = torch.narrow(student, dim, 0, min_size)
         teacher = torch.narrow(teacher, dim, 0, min_size)
+    
+    cross_loss = (Alpha * student_output.loss)
+    dist_loss = (Beta * abs(student-teacher).sum(dim=-1).mean()**T)
+    return cross_loss + dist_loss, cross_loss, dist_loss
 
-    return (Alpha * student_output.loss) + (Beta * abs(student-teacher).sum(dim=-1).mean()**T)
+def preprocess_distillation_batch(batch):
+    batch_dict = {"student_" + key: value for key, value in batch[0].items()}
+    batch_dict.update({"teacher_" + key: value for key,
+                      value in batch[1].items()})
+    return batch_dict

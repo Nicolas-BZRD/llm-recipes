@@ -1,13 +1,9 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# This software may be used and distributed according to the terms of the Llama 2 Community License Agreement.
+import functools
+from peft.tuners import PrefixEncoder, PromptEmbedding, PromptEncoder
+from torch.distributed.fsdp.wrap import _or_policy, lambda_auto_wrap_policy, transformer_auto_wrap_policy
 
+# TODO
 def fsdp_auto_wrap_policy(model, transformer_layer_name):
-    import functools
-
-    from torch.distributed.fsdp.wrap import _or_policy, lambda_auto_wrap_policy, transformer_auto_wrap_policy
-
-    from peft.tuners import PrefixEncoder, PromptEmbedding, PromptEncoder
-
     def lambda_policy_fn(module):
         if (
             len(list(module.named_children())) == 0

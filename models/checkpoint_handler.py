@@ -1,35 +1,19 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# This software may be used and distributed according to the terms of the Llama 2 Community License Agreement.
+import time
+import torch
 
 from pathlib import Path
 from datetime import datetime
-import torch
-import time
+import torch.distributed as dist
+import torch.distributed._shard.checkpoint as dist_cp
+from torch.distributed._shard.checkpoint import FileSystemReader
+from torch.distributed.checkpoint.default_planner import DefaultSavePlanner
+from torch.distributed.fsdp.fully_sharded_data_parallel import StateDictType
 
 from torch.distributed.fsdp import (
     FullyShardedDataParallel as FSDP,
     StateDictType,
-    FullStateDictConfig,  # general model non-sharded, non-flattened params
-    LocalStateDictConfig,  # flattened params, usable only by FSDP
-    # ShardedStateDictConfig, # un-flattened param but shards, usable by other parallel schemes.
+    FullStateDictConfig,
 )
-
-from torch.distributed._shard.checkpoint import (
-    FileSystemReader,
-    FileSystemWriter,
-    save_state_dict,
-    load_state_dict,
-)
-from torch.distributed.checkpoint.default_planner import (
-    DefaultSavePlanner,
-    DefaultLoadPlanner,
-)
-
-
-from torch.distributed.fsdp.fully_sharded_data_parallel import StateDictType
-import torch.distributed._shard.checkpoint as dist_cp
-import torch.distributed as dist
-
 
 def get_date_of_run():
     """create date and time for file save uniqueness

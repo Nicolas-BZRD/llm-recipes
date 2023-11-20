@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-
 from torch.distributed.fsdp import ShardingStrategy
 from torch.distributed.fsdp.fully_sharded_data_parallel import StateDictType
 
@@ -9,13 +8,13 @@ class distillation_config:
     enable_fsdp: bool = False
     low_cpu_fsdp: bool = False
     quantization: bool = False
-    use_fast_kernels: bool = True
+    use_fast_kernels: bool = False
     use_peft: bool = False
     freeze_layers: bool = False
     num_freeze_layers: int = 0
 
     # FSDP Config
-    mixed_precision: bool = True
+    mixed_precision: bool = False
     use_fp16: bool = False
     sharding_strategy: ShardingStrategy = ShardingStrategy.FULL_SHARD
     checkpoint_type: StateDictType = StateDictType.SHARDED_STATE_DICT

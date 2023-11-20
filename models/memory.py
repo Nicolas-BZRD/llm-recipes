@@ -1,20 +1,20 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# This software may be used and distributed according to the terms of the Llama 2 Community License Agreement.
-
 import gc
+import torch
 import psutil
 import threading
 
-import torch
+def byte2mb(x):
+    return int(x / 2**20)
 
 def byte2gb(x):
     return int(x / 2**30)
+
 # This context manager is used to track the peak memory usage of the process
 class MemoryTrace:
     def __enter__(self):
         gc.collect()
         torch.cuda.empty_cache()
-        torch.cuda.reset_max_memory_allocated()  # reset the peak gauge to zero
+        torch.cuda.reset_max_memory_allocated() 
         self.begin = byte2gb(torch.cuda.memory_allocated())
         self.process = psutil.Process()
         self.cpu_begin = byte2gb(self.cpu_mem_used())
@@ -30,15 +30,17 @@ class MemoryTrace:
 
     def peak_monitor_func(self):
         self.cpu_peak = -1
-
         while True:
             self.cpu_peak = max(self.cpu_mem_used(), self.cpu_peak)
-
-            # can't sleep or will not catch the peak right (this comment is here on purpose)
-            # time.sleep(0.001) # 1msec
-
             if not self.peak_monitoring:
                 break
+
+    def __str__(self):
+        print(f"Max CUDA memory allocated was {self.peak} GB")
+        print(f"Max CUDA memory reserved was {self.max_reserved} GB")
+        print(f"Peak active CUDA memory was {self.peak_active_gb} GB")
+        print(f"Cuda Malloc retires : {self.cuda_malloc_retires}")
+        print(f"CPU Total Peak Memory consumed during the train (max): {self.cpu_peaked + self.cpu_begin} GB")
 
     def __exit__(self, *exc):
         self.peak_monitoring = False
@@ -59,4 +61,3 @@ class MemoryTrace:
         self.cpu_end = self.cpu_mem_used()
         self.cpu_used = byte2gb(self.cpu_end - self.cpu_begin)
         self.cpu_peaked = byte2gb(self.cpu_peak - self.cpu_begin)
-        # print(f"delta used/peak {self.used:4d}/{self.peaked:4d}")

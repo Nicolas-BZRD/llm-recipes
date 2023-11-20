@@ -1,17 +1,5 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# This software may be used and distributed according to the terms of the Llama 2 Community License Agreement.
-
-# AnyPrecisionAdamW: a flexible precision AdamW optimizer
-# with optional Kahan summation for high precision weight updates.
-# Allows direct control over momentum, variance and auxiliary compensation
-# buffer dtypes.
-# Optional Kahan summation is used to offset precision reduction for
-# the weight updates. This allows full training in BFloat16 (equal or
-# better than FP32 results in many cases) due to high precision weight upates.
-
 import torch
 from torch.optim.optimizer import Optimizer
-
 
 class AnyPrecisionAdamW(Optimizer):
     def __init__(
