@@ -13,7 +13,7 @@ class distillation_config:
     freeze_layers: bool = False
     num_freeze_layers: int = 0
     cross_entropy_factor: int = 1
-    distil_factor: int = 10
+    distil_factor: int = 1
 
     # FSDP Config
     mixed_precision: bool = False
@@ -24,3 +24,7 @@ class distillation_config:
     fsdp_cpu_offload: bool = False
     pure_bf16: bool = False
     optimizer: str = "AdamW"
+
+    # Dataset Config
+    context: bool = False
+    few_shot: int = 0

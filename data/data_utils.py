@@ -59,6 +59,7 @@ def get_dataloader(dataset_config, train_config, tokenizer, rank):
         dataset_train,
         num_workers=train_config.num_workers_dataloader,
         pin_memory=True,
+        shuffle=False,
         **train_dl_kwargs,
     )
     if rank == 0:
@@ -90,9 +91,13 @@ def get_dataloader(dataset_config, train_config, tokenizer, rank):
         return train_dataloader, None
 
 
-def get_distillation_dataloader(dataset_config, train_config, student_tokenizer, teacher_tokenizer, rank):
+def get_distillation_dataloader(dataset_config, train_config, distil_config, student_tokenizer, teacher_tokenizer, rank):
     student_train_dataloader, student_eval_dataloader = get_dataloader(
         dataset_config, train_config, student_tokenizer, rank)
+    
+    dataset_config_teacher = dataset_config
+    dataset_config_teacher.context, dataset_config_teacher.few_shot = distil_config.context, distil_config.few_shot
     teacher_train_dataloader, teacher_eval_dataloader = get_dataloader(
-        dataset_config, train_config, teacher_tokenizer, rank)
-    return len(student_train_dataloader), zip(student_train_dataloader, teacher_train_dataloader), zip(student_eval_dataloader, teacher_eval_dataloader)
+        dataset_config_teacher, train_config, teacher_tokenizer, rank)
+
+    return len(student_train_dataloader), len(student_eval_dataloader), zip(student_train_dataloader, teacher_train_dataloader), zip(student_eval_dataloader, teacher_eval_dataloader)

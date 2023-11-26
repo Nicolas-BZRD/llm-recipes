@@ -12,7 +12,7 @@ from train.save import save_train_params, save_model
 from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
 from models.distillation_model import distil_loss, preprocess_distillation_batch
 
-def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_scheduler, gradient_accumulation_steps, train_config, distil_config, dataset_config, steps_per_epoch, fsdp_config=None, local_rank=None, rank=None):
+def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gradient_accumulation_steps, train_config, distil_config, dataset_config, steps_per_epoch, steps_per_eval, fsdp_config=None, local_rank=None, rank=None):
     # Weights & Biases tracking system initialization.
     os.environ["WANDB__SERVICE_WAIT"] = "300"
     if rank == 0:
@@ -117,6 +117,7 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
                             "train_loss": loss.detach().float(),
                             "cross_loss": cross_loss.detach().float(),
                             "distil_loss": dist_loss.detach().float(),
+                            "teacher_loss": teacher_output.loss.detach().float(),
                             "lr": optimizer.param_groups[0]['lr']
                         })
                     else:
@@ -130,7 +131,7 @@ def train(model, train_dataloader, eval_dataloader, tokenizer, optimizer, lr_sch
 
                 if train_config.run_validation and ((step+1) % train_config.save_step == 0 or step+1 == steps_per_epoch):
                     if rank == 0: print("Running evaluation...")
-                    eval_ppl, eval_epoch_loss, eval_cross_loss, eval_dist_loss = evaluation(model, train_config, distil_config, eval_dataloader, local_rank)
+                    eval_ppl, eval_epoch_loss, eval_cross_loss, eval_dist_loss = evaluation(model, train_config, distil_config, eval_dataloader, steps_per_eval, local_rank)
                     if rank == 0:
                         print(f" {eval_ppl} {eval_epoch_loss}")
                         if train_config.distillation:

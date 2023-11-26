@@ -30,9 +30,10 @@ def save_model(model, optimizer, epoch, train_config, distil_config, fsdp_config
                 save_model_and_optimizer_sharded(model, rank, train_config)
 
     else:
-        if rank == 0: print(f"we are about to save the model")
-        model.save_pretrained(train_config.output_dir)
-        if rank == 0:print(f"Model are saved in {train_config.output_dir} directory")
+        if rank == 0:
+            print(f"we are about to save the model")
+            model.save_pretrained(train_config.output_dir)
+            print(f"Model are saved in {train_config.output_dir} directory")
 
     if train_config.enable_fsdp or distil_config.enable_fsdp:
         dist.barrier()

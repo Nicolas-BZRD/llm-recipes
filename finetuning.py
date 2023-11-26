@@ -45,9 +45,10 @@ def main(**kwargs):
 
     # Load Data
     if train_config.distillation:
-        steps_per_epoch, train_dataloader, eval_dataloader = get_distillation_dataloader(data_config, train_config, student_tokenizer, teacher_tokenizer, rank)
+        steps_per_epoch, steps_per_eval, train_dataloader, eval_dataloader = get_distillation_dataloader(data_config, train_config, distil_config, student_tokenizer, teacher_tokenizer, rank)
     else:
-        steps_per_epoch, train_dataloader, eval_dataloader = get_dataloader(data_config, train_config, tokenizer, rank)
+        train_dataloader, eval_dataloader = get_dataloader(data_config, train_config, tokenizer, rank)
+        steps_per_epoch, steps_per_eval = len(train_dataloader), len(eval_dataloader)
 
     # Get the optimizer and learning rate scheduler
     optimizer = get_optimizer(model, train_config, fsdp_config)
@@ -58,7 +59,6 @@ def main(**kwargs):
         model,
         train_dataloader,
         eval_dataloader,
-        student_tokenizer if train_config.distillation else tokenizer,
         optimizer,
         scheduler,
         train_config.gradient_accumulation_steps,
@@ -66,6 +66,7 @@ def main(**kwargs):
         distil_config,
         data_config,
         steps_per_epoch,
+        steps_per_eval,
         fsdp_config if train_config.enable_fsdp else None,
         local_rank if train_config.enable_fsdp or distil_config.enable_fsdp else None,
         rank,
