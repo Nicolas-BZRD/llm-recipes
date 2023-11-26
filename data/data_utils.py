@@ -100,4 +100,4 @@ def get_distillation_dataloader(dataset_config, train_config, distil_config, stu
     teacher_train_dataloader, teacher_eval_dataloader = get_dataloader(
         dataset_config_teacher, train_config, teacher_tokenizer, rank)
 
-    return len(student_train_dataloader), len(student_eval_dataloader), zip(student_train_dataloader, teacher_train_dataloader), zip(student_eval_dataloader, teacher_eval_dataloader)
+    return student_train_dataloader, teacher_train_dataloader, student_eval_dataloader, teacher_eval_dataloader

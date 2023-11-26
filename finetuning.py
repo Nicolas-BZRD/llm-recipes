@@ -45,14 +45,13 @@ def main(**kwargs):
 
     # Load Data
     if train_config.distillation:
-        steps_per_epoch, steps_per_eval, train_dataloader, eval_dataloader = get_distillation_dataloader(data_config, train_config, distil_config, student_tokenizer, teacher_tokenizer, rank)
+        train_dataloader, teacher_train_dataloader, eval_dataloader, teacher_eval_dataloader = get_distillation_dataloader(data_config, train_config, distil_config, student_tokenizer, teacher_tokenizer, rank)
     else:
         train_dataloader, eval_dataloader = get_dataloader(data_config, train_config, tokenizer, rank)
-        steps_per_epoch, steps_per_eval = len(train_dataloader), len(eval_dataloader)
 
     # Get the optimizer and learning rate scheduler
     optimizer = get_optimizer(model, train_config, fsdp_config)
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=train_config.lr, epochs=train_config.num_epochs, steps_per_epoch=steps_per_epoch,
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=train_config.lr, epochs=train_config.num_epochs, steps_per_epoch=len(train_dataloader),
                                                     pct_start=train_config.pct_start, div_factor=train_config.div_factor, final_div_factor=train_config.final_div_factor)
 
     results = train(
@@ -65,8 +64,8 @@ def main(**kwargs):
         train_config,
         distil_config,
         data_config,
-        steps_per_epoch,
-        steps_per_eval,
+        teacher_train_dataloader if train_config.distillation else None,
+        teacher_eval_dataloader if train_config.distillation else None,
         fsdp_config if train_config.enable_fsdp else None,
         local_rank if train_config.enable_fsdp or distil_config.enable_fsdp else None,
         rank,

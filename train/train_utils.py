@@ -1,6 +1,7 @@
 import os
 import time
 import torch
+import copy
 import wandb
 import torch.distributed as dist
 
@@ -12,7 +13,7 @@ from train.save import save_train_params, save_model
 from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
 from models.distillation_model import distil_loss, preprocess_distillation_batch
 
-def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gradient_accumulation_steps, train_config, distil_config, dataset_config, steps_per_epoch, steps_per_eval, fsdp_config=None, local_rank=None, rank=None):
+def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gradient_accumulation_steps, train_config, distil_config, dataset_config, teacher_train_dataloader=None, teacher_eval_dataloader=None, fsdp_config=None, local_rank=None, rank=None):
     # Weights & Biases tracking system initialization.
     os.environ["WANDB__SERVICE_WAIT"] = "300"
     if rank == 0:
@@ -71,16 +72,17 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
     epoch_times = []
     checkpoint_times = []
     results = {}
+    steps_per_eval = len(eval_dataloader)
+    steps_per_epoch = len(train_dataloader)
     best_val_loss = float("inf")
     for epoch in range(train_config.num_epochs):
         epoch_start_time = time.perf_counter()
+        total_length = steps_per_epoch//gradient_accumulation_steps
+        model.student.train() if train_config.distillation else model.train()
         with MemoryTrace() as memtrace:
-            model.student.train() if train_config.distillation else model.train()
             total_loss = 0.0
-
-            total_length = steps_per_epoch//gradient_accumulation_steps
             pbar = tqdm(colour="blue", desc=f"Training Epoch: {epoch+1}", total=total_length, dynamic_ncols=True)
-            for step, batch in enumerate(train_dataloader):
+            for step, batch in enumerate(train_dataloader if not train_config.distillation else zip(train_dataloader, teacher_train_dataloader)):
                 if train_config.distillation: batch = preprocess_distillation_batch(batch)
                 for key in batch.keys():
                     if train_config.enable_fsdp or distil_config.enable_fsdp:
@@ -103,13 +105,13 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                         scaler.step(optimizer)
                         scaler.update()
                         optimizer.zero_grad()
-                        pbar.update(1)
+                        pbar.update()
                 else:
                     loss.backward()
                     if (step + 1) % gradient_accumulation_steps == 0 or step == steps_per_epoch - 1:
                         optimizer.step()
                         optimizer.zero_grad()
-                        pbar.update(1)
+                        pbar.update()
 
                 if rank == 0:
                     if train_config.distillation:
@@ -131,7 +133,11 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
 
                 if train_config.run_validation and ((step+1) % train_config.save_step == 0 or step+1 == steps_per_epoch):
                     if rank == 0: print("Running evaluation...")
-                    eval_ppl, eval_epoch_loss, eval_cross_loss, eval_dist_loss = evaluation(model, train_config, distil_config, eval_dataloader, steps_per_eval, local_rank)
+                    eval_ppl, eval_epoch_loss, eval_cross_loss, eval_dist_loss = evaluation(
+                        model, train_config, distil_config, 
+                        eval_dataloader if not train_config.distillation else zip(eval_dataloader, teacher_eval_dataloader),
+                        steps_per_eval, local_rank)
+                    
                     if rank == 0:
                         print(f" {eval_ppl} {eval_epoch_loss}")
                         if train_config.distillation:
