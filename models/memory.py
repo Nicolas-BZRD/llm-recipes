@@ -36,11 +36,12 @@ class MemoryTrace:
                 break
 
     def __str__(self):
-        print(f"Max CUDA memory allocated was {self.peak} GB")
-        print(f"Max CUDA memory reserved was {self.max_reserved} GB")
-        print(f"Peak active CUDA memory was {self.peak_active_gb} GB")
-        print(f"Cuda Malloc retires : {self.cuda_malloc_retires}")
-        print(f"CPU Total Peak Memory consumed during the train (max): {self.cpu_peaked + self.cpu_begin} GB")
+        return f"""Max CUDA memory allocated was {self.peak} GB
+        Max CUDA memory reserved was {self.max_reserved} GB
+        Peak active CUDA memory was {self.peak_active_gb} GB
+        Cuda Malloc retires : {self.cuda_malloc_retires}
+        CPU Total Peak Memory consumed during the train (max): {self.cpu_peaked + self.cpu_begin} GB
+        """
 
     def __exit__(self, *exc):
         self.peak_monitoring = False

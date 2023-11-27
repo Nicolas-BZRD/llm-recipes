@@ -13,8 +13,7 @@ def evaluation(model, train_config, distil_config, eval_dataloader, steps_per_ev
     eval_cross_loss = 0.0
     eval_dist_loss = 0.0
     pbar = tqdm(colour="green", desc="Evaluating", total=steps_per_eval, dynamic_ncols=True)
-    for step, batch in enumerate(eval_dataloader):
-        print(step)
+    for _, batch in enumerate(eval_dataloader):
         if train_config.distillation:
             batch = preprocess_distillation_batch(batch)
         for key in batch.keys():
@@ -35,7 +34,6 @@ def evaluation(model, train_config, distil_config, eval_dataloader, steps_per_ev
             eval_loss += loss.detach().float()
         pbar.update()
 
-    print(eval_loss)
     if torch.cuda.device_count() > 1 and train_config.enable_fsdp or distil_config.enable_fsdp:
         dist.all_reduce(eval_loss, op=dist.ReduceOp.SUM)
 
@@ -46,6 +44,6 @@ def evaluation(model, train_config, distil_config, eval_dataloader, steps_per_ev
         eval_loss /= world_size
         eval_cross_loss /= world_size
         eval_dist_loss /= world_size
-    eval_ppl = torch.exp(eval_loss)
+    eval_ppl = torch.exp(eval_cross_loss if train_config.distillation else eval_loss)
 
     return eval_ppl, eval_loss, eval_cross_loss, eval_dist_loss

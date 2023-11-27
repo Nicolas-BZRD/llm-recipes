@@ -137,6 +137,8 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                         model, train_config, distil_config, 
                         eval_dataloader if not train_config.distillation else zip(eval_dataloader, teacher_eval_dataloader),
                         steps_per_eval, local_rank)
+                    val_loss.append(eval_epoch_loss)
+                    val_ppl.append(eval_ppl)
                     
                     if rank == 0:
                         print(f" {eval_ppl} {eval_epoch_loss}")
@@ -147,6 +149,8 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                                 "eval_cross_loss": eval_cross_loss,
                                 "eval_dist_loss": eval_dist_loss
                             })
+                            # To save model with the best cross_loss
+                            eval_epoch_loss = eval_cross_loss
                         else:
                             wandb.log({
                                 "eval_ppl": eval_ppl,
@@ -165,13 +169,11 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                             )
                             checkpoint_end_time = time.perf_counter() - checkpoint_start_time
                             checkpoint_times.append(checkpoint_end_time)
-                    val_loss.append(eval_epoch_loss)
-                    val_ppl.append(eval_ppl)
             pbar.close()
+            if rank == 0: print(memtrace)
         epoch_end_time = time.perf_counter()-epoch_start_time
         epoch_times.append(epoch_end_time)
 
-        # ----- TODO
         if torch.cuda.device_count() > 1 and train_config.enable_fsdp or distil_config.enable_fsdp:
             dist.all_reduce(total_loss, op=dist.ReduceOp.SUM)
         train_epoch_loss = total_loss / steps_per_epoch
@@ -183,7 +185,6 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
         train_loss.append(train_epoch_loss)
 
         if rank == 0:
-            print(memtrace)
             print(
                 f"Epoch {epoch+1}: train_perplexity={train_perplexity:.4f}, train_epoch_loss={train_epoch_loss:.4f}, epoch time {epoch_end_time}s")
             wandb.log({
@@ -209,7 +210,6 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
     results["avg_epoch_time"] = avg_epoch_time
     results["avg_checkpoint_time"] = avg_checkpoint_time
 
-    # saving the training params including fsdp setting for reference.
     if train_config.enable_fsdp and not train_config.use_peft:
         save_train_params(train_config, fsdp_config, rank)
 

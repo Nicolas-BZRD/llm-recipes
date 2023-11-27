@@ -29,11 +29,6 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
     student = student_output.logits
     teacher = teacher_output.logits
 
-    student = torch.nn.functional.softmax(
-        student, dim=-1).sort(dim=-1, descending=True).values
-    teacher = torch.nn.functional.softmax(
-        teacher, dim=-1).sort(dim=-1, descending=True).values
-
     student_answer_index, student_answer_size = __get_start_and_size_answers(
         student_labels, mask_labels)
     teacher_answer_index, teacher_answer_size = __get_start_and_size_answers(
@@ -55,6 +50,12 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
         teacher[i] = torch.cat((teacher[i, shift:end_shift, :], torch.zeros_like(
             teacher[i, :(teacher.size(1)-size), :])), dim=0)
     teacher = teacher[:, :max(teacher_answer_size), :]
+
+    # Softmax predictions
+    student = torch.nn.functional.softmax(
+        student, dim=-1).sort(dim=-1, descending=True).values
+    teacher = torch.nn.functional.softmax(
+        teacher, dim=-1).sort(dim=-1, descending=True).values
 
     # Align same dictionary size
     min_size = min(teacher.size(-1), student.size(-1))
