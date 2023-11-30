@@ -45,32 +45,38 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
         shift = student_answer_index[i]
         size = student_answer_size[i]
         end_shift = shift+size
+        student_labels[i] = torch.cat((student_labels[i, shift:end_shift], torch.zeros_like(student_labels[i, :(student_labels.size(1)-size)])), dim=0)
         student[i] = torch.cat((student[i, shift:end_shift, :], torch.zeros_like(
             student[i, :(student.size(1)-size), :])), dim=0)
     student = student[:, :max(student_answer_size), :]
+    student_labels = student_labels[:, :max(student_answer_size)]
 
     for i in range(teacher.size(0)):
         shift = teacher_answer_index[i]
         size = teacher_answer_size[i]
         end_shift = shift+size
+        teacher_labels[i] = torch.cat((teacher_labels[i, shift:end_shift], torch.zeros_like(teacher_labels[i, :(teacher_labels.size(1)-size)])), dim=0)
         teacher[i] = torch.cat((teacher[i, shift:end_shift, :], torch.zeros_like(
             teacher[i, :(teacher.size(1)-size), :])), dim=0)
     teacher = teacher[:, :max(teacher_answer_size), :]
+    teacher_labels = teacher_labels[:, :max(teacher_answer_size)]
+
+    # -----
+    # student = torch.nn.functional.softmax(
+    #     student, dim=-1)
+    # teacher = torch.nn.functional.softmax(
+    #     teacher, dim=-1)
+    
+    # print(f"\nPythia label:{student_tokenizer.decode(student_labels[0])}")
+    # print(f"Pythia:{student_tokenizer.decode(torch.argmax(student[0], dim=-1))}")
+    # print(f"Llama label:{teacher_tokenizer.decode(teacher_labels[0])}")
+    # print(f"Llama:{teacher_tokenizer.decode(torch.argmax(teacher[0], dim=-1))}")
 
     # Softmax predictions
     student = torch.nn.functional.softmax(
         student, dim=-1).sort(dim=-1, descending=True).values
     teacher = torch.nn.functional.softmax(
         teacher, dim=-1).sort(dim=-1, descending=True).values
-
-    # student = torch.nn.functional.softmax(
-    #     student, dim=-1)
-    # teacher = torch.nn.functional.softmax(
-    #     teacher, dim=-1)
-    
-    # if rank==0:
-    #     print(f"Pythia:{student_tokenizer.decode(torch.argmax(student[0], dim=-1))}")
-    #     print(f"Llama: {teacher_tokenizer.decode(torch.argmax(teacher[0], dim=-1))}")
 
     # Pad to get same dictionary size
     # diff_size = student.size(2) - teacher.size(2)
