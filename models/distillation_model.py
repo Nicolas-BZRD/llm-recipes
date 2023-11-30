@@ -25,7 +25,7 @@ class DistilModel(nn.Module):
         return student_output, teacher_output
 
 
-def distil_loss(student_output, teacher_output, student_labels, teacher_labels, Alpha=1, Beta=1, mask_labels=-100):
+def distil_loss(student_output, teacher_output, student_labels, teacher_labels, Alpha=1, Beta=1, student_eos_skip=2, teacher_eos_skip=0, mask_labels=-100):
     student = student_output.logits
     teacher = teacher_output.logits
 
@@ -34,11 +34,14 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
     teacher_answer_index, teacher_answer_size = __get_start_and_size_answers(
         teacher_labels, mask_labels)
 
+    student_answer_size = [item - student_eos_skip for item in student_answer_size]
+    teacher_answer_size = [item - teacher_eos_skip for item in teacher_answer_size]
+
     # Align answer first token and pad to right
     for i in range(student.size(0)):
         shift = student_answer_index[i]
         size = student_answer_size[i]
-        end_shift = shift + size
+        end_shift = shift+size
         student[i] = torch.cat((student[i, shift:end_shift, :], torch.zeros_like(
             student[i, :(student.size(1)-size), :])), dim=0)
     student = student[:, :max(student_answer_size), :]
@@ -57,10 +60,21 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
     teacher = torch.nn.functional.softmax(
         teacher, dim=-1).sort(dim=-1, descending=True).values
 
-    # Align same dictionary size
-    min_size = min(teacher.size(-1), student.size(-1))
-    student = torch.narrow(student, -1, 0, min_size)
-    teacher = torch.narrow(teacher, -1, 0, min_size)
+    # Pad to get same dictionary size
+    diff_size = student.size(2) - teacher.size(2)
+    if diff_size > 0:
+        teacher = torch.cat((
+            teacher,
+            torch.zeros((teacher.size(0), teacher.size(1),
+                        diff_size), device=teacher.device)
+        ), dim=2)
+
+    elif diff_size < 0:
+        student = torch.cat((
+            student,
+            torch.zeros((student.size(0), student.size(1),
+                        abs(diff_size)), device=student.device)
+        ), dim=2)
 
     # Pad to get same number of token per sentence
     diff_size = student.size(1) - teacher.size(1)

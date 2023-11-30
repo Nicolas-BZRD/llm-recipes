@@ -8,6 +8,7 @@ import torch.distributed as dist
 from tqdm import tqdm
 from contextlib import nullcontext
 from models.memory import MemoryTrace
+from train.tools import clear_gpu_cache
 from train.evaluations import evaluation
 from train.save import save_train_params, save_model
 from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
@@ -53,6 +54,8 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                 "dist_checkpoint_folder": train_config.dist_checkpoint_folder,
                 "save_optimizer": train_config.save_optimizer,
                 "use_fast_kernels": train_config.use_fast_kernels,
+                "cross_entropy_factor": distil_config.cross_entropy_factor if train_config.distillation else -1,
+                "distil_factor": distil_config.distil_factor if train_config.distillation else -1
             }
         )
 
@@ -133,10 +136,12 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
 
                 if train_config.run_validation and ((step+1) % train_config.save_step == 0 or step+1 == steps_per_epoch):
                     if rank == 0: print("Running evaluation...")
+                    model.eval()
                     eval_ppl, eval_epoch_loss, eval_cross_loss, eval_dist_loss = evaluation(
                         model, train_config, distil_config, 
                         eval_dataloader if not train_config.distillation else zip(eval_dataloader, teacher_eval_dataloader),
                         steps_per_eval, local_rank)
+                    model.student.train() if train_config.distillation else model.train()
                     val_loss.append(eval_epoch_loss)
                     val_ppl.append(eval_ppl)
                     
@@ -169,8 +174,10 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                             )
                             checkpoint_end_time = time.perf_counter() - checkpoint_start_time
                             checkpoint_times.append(checkpoint_end_time)
+                    clear_gpu_cache(rank)
             pbar.close()
-            if rank == 0: print(memtrace)
+        
+        if rank == 0: print(memtrace)
         epoch_end_time = time.perf_counter()-epoch_start_time
         epoch_times.append(epoch_end_time)
 

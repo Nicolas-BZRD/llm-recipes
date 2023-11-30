@@ -19,9 +19,9 @@ class LengthBasedBatchSampler(torch.utils.data.BatchSampler):
     def __iter__(self):
         ids = list(range(len(self.lengths)))
         if self.drop_last: ids = ids[:len(ids) // self.batch_size * self.batch_size]
-
+    
+        if self.shuffle: random.Random(self.seed).shuffle(ids)
         batches = [ids[i:i+self.batch_size] for i in range(0, len(ids), self.batch_size)]   
-        if self.shuffle: random.Random(self.seed).shuffle(batches)
 
         for b in batches: yield b
 
