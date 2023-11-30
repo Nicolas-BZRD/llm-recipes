@@ -24,8 +24,11 @@ class DistilModel(nn.Module):
         )
         return student_output, teacher_output
 
+from transformers import AutoTokenizer
+student_tokenizer = AutoTokenizer.from_pretrained("EleutherAI/pythia-410m-deduped")
+teacher_tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf")
 
-def distil_loss(student_output, teacher_output, student_labels, teacher_labels, Alpha=1, Beta=1, student_eos_skip=2, teacher_eos_skip=0, mask_labels=-100):
+def distil_loss(student_output, teacher_output, student_labels, teacher_labels, Alpha=1, Beta=1, student_eos_skip=True, teacher_eos_skip=False, mask_labels=-100):
     student = student_output.logits
     teacher = teacher_output.logits
 
@@ -33,9 +36,9 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
         student_labels, mask_labels)
     teacher_answer_index, teacher_answer_size = __get_start_and_size_answers(
         teacher_labels, mask_labels)
-
-    student_answer_size = [item - student_eos_skip for item in student_answer_size]
-    teacher_answer_size = [item - teacher_eos_skip for item in teacher_answer_size]
+    
+    if student_eos_skip: student_answer_size = [size-1 for size in student_answer_size]
+    if teacher_eos_skip: teacher_answer_size = [size-1 for size in teacher_answer_size]
 
     # Align answer first token and pad to right
     for i in range(student.size(0)):
@@ -60,21 +63,35 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
     teacher = torch.nn.functional.softmax(
         teacher, dim=-1).sort(dim=-1, descending=True).values
 
-    # Pad to get same dictionary size
-    diff_size = student.size(2) - teacher.size(2)
-    if diff_size > 0:
-        teacher = torch.cat((
-            teacher,
-            torch.zeros((teacher.size(0), teacher.size(1),
-                        diff_size), device=teacher.device)
-        ), dim=2)
+    # student = torch.nn.functional.softmax(
+    #     student, dim=-1)
+    # teacher = torch.nn.functional.softmax(
+    #     teacher, dim=-1)
+    
+    # if rank==0:
+    #     print(f"Pythia:{student_tokenizer.decode(torch.argmax(student[0], dim=-1))}")
+    #     print(f"Llama: {teacher_tokenizer.decode(torch.argmax(teacher[0], dim=-1))}")
 
-    elif diff_size < 0:
-        student = torch.cat((
-            student,
-            torch.zeros((student.size(0), student.size(1),
-                        abs(diff_size)), device=student.device)
-        ), dim=2)
+    # Pad to get same dictionary size
+    # diff_size = student.size(2) - teacher.size(2)
+    # if diff_size > 0:
+    #     teacher = torch.cat((
+    #         teacher,
+    #         torch.zeros((teacher.size(0), teacher.size(1),
+    #                     diff_size), device=teacher.device)
+    #     ), dim=-1)
+
+    # elif diff_size < 0:
+    #     student = torch.cat((
+    #         student,
+    #         torch.zeros((student.size(0), student.size(1),
+    #                     abs(diff_size)), device=student.device)
+    #     ), dim=-1)
+
+    # Align same dictionary size
+    min_size = min(teacher.size(-1), student.size(-1))
+    student = torch.narrow(student, -1, 0, min_size)
+    teacher = torch.narrow(teacher, -1, 0, min_size)
 
     # Pad to get same number of token per sentence
     diff_size = student.size(1) - teacher.size(1)
