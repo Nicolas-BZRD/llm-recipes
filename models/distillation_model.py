@@ -41,9 +41,6 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
     if teacher_eos_skip: teacher_answer_size = [size-1 for size in teacher_answer_size]
 
     # Align answer first token and pad to right
-    if rank == 0:
-        print(student_labels[0].shape)
-        print(student[0].shape)
     for i in range(student.size(0)):
         shift = student_answer_index[i]
         size = student_answer_size[i]
