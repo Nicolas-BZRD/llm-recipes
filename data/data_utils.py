@@ -38,9 +38,9 @@ def get_dataset(dataset_config, tokenizer, split: str) -> torch.utils.data.Datas
 
     try:
         return getattr(module, func_name)(dataset_config, tokenizer, split)
-    except:
-        raise ValueError(
-            f"It seems like the given method name ({func_name}) is not present in the load.py file ({module_path.as_posix()}).")
+    except Exception as err:
+        print(err)
+        raise ValueError(f"It seems like the given method name ({func_name}) is not present in the load.py file ({module_path.as_posix()}).")
 
 
 def get_dataloader(dataset_config, train_config, tokenizer, rank, distil_config=None):
