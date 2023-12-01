@@ -7,33 +7,36 @@ from torch.distributed.fsdp import StateDictType
 from models.checkpoint_handler import save_model_checkpoint, save_model_and_optimizer_sharded, save_optimizer_checkpoint
 
 
-def save_model(model, optimizer, epoch, train_config, distil_config, fsdp_config, rank):
+def save_model(model, optimizer, epoch, step, train_config, distil_config, fsdp_config, rank):
     if train_config.enable_fsdp or distil_config.enable_fsdp:
         dist.barrier()
 
-    if train_config.use_peft:
-        if rank == 0: print(f"we are about to save the PEFT modules")
-        model.save_pretrained(train_config.output_dir)
-        if rank == 0: print(f"PEFT modules are saved in {train_config.output_dir} directory")
+    try: os.mkdir(f"{train_config.output_dir}/ep{epoch}_st{step}")
+    except: pass
 
-    elif train_config.enable_fsdp:
+    if train_config.use_peft:
+        if rank == 0: print(f"We are about to save the PEFT modules")
+        model.save_pretrained(f"{train_config.output_dir}/ep{epoch}_st{step}")
+        if rank == 0: print(f"PEFT modules are saved in {train_config.output_dir}/ep{epoch}_st{step} directory")
+
+    elif train_config.enable_fsdp: # TODO Save all, change path
         if fsdp_config.checkpoint_type == StateDictType.FULL_STATE_DICT:
-            print(" Saving the FSDP model checkpoints using FULL_STATE_DICT")
+            print("Saving the FSDP model checkpoints using FULL_STATE_DICT")
             save_model_checkpoint(model, optimizer, rank, train_config, epoch=epoch)
 
         elif fsdp_config.checkpoint_type == StateDictType.SHARDED_STATE_DICT:
             if train_config.save_optimizer:
-                print(" Saving the FSDP model checkpoints and optimizer using SHARDED_STATE_DICT")
+                print("Saving the FSDP model checkpoints and optimizer using SHARDED_STATE_DICT")
                 save_model_and_optimizer_sharded(model, rank, train_config, optim=optimizer)
             else:
-                print(" Saving the FSDP model checkpoints using SHARDED_STATE_DICT")
+                print("Saving the FSDP model checkpoints using SHARDED_STATE_DICT")
                 save_model_and_optimizer_sharded(model, rank, train_config)
 
     else:
         if rank == 0:
-            print(f"we are about to save the model")
-            model.save_pretrained(train_config.output_dir)
-            print(f"Model are saved in {train_config.output_dir} directory")
+            print(f"We are about to save the model")
+            model.save_pretrained(f"{train_config.output_dir}/ep{epoch}_st{step}")
+            print(f"Model are saved in {train_config.output_dir}/ep{epoch}_st{step} directory")
 
     if train_config.enable_fsdp or distil_config.enable_fsdp:
         dist.barrier()

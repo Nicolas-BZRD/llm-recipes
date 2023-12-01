@@ -28,7 +28,7 @@ from transformers import AutoTokenizer
 student_tokenizer = AutoTokenizer.from_pretrained("EleutherAI/pythia-410m-deduped")
 teacher_tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf")
 
-def distil_loss(student_output, teacher_output, student_labels, teacher_labels, Alpha=1, Beta=1, student_eos_skip=True, teacher_eos_skip=False, mask_labels=-100):
+def distil_loss(student_output, teacher_output, student_labels, teacher_labels, rank, Alpha=1, Beta=1, student_eos_skip=True, teacher_eos_skip=False, mask_labels=-100, debug=False):
     student = student_output.logits
     teacher = teacher_output.logits
 
@@ -41,42 +41,55 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
     if teacher_eos_skip: teacher_answer_size = [size-1 for size in teacher_answer_size]
 
     # Align answer first token and pad to right
+    if rank == 0:
+        print(student_labels[0].shape)
+        print(student[0].shape)
     for i in range(student.size(0)):
         shift = student_answer_index[i]
         size = student_answer_size[i]
         end_shift = shift+size
-        student_labels[i] = torch.cat((student_labels[i, shift:end_shift], torch.zeros_like(student_labels[i, :(student_labels.size(1)-size)])), dim=0)
         student[i] = torch.cat((student[i, shift:end_shift, :], torch.zeros_like(
             student[i, :(student.size(1)-size), :])), dim=0)
     student = student[:, :max(student_answer_size), :]
-    student_labels = student_labels[:, :max(student_answer_size)]
 
     for i in range(teacher.size(0)):
         shift = teacher_answer_index[i]
         size = teacher_answer_size[i]
         end_shift = shift+size
-        teacher_labels[i] = torch.cat((teacher_labels[i, shift:end_shift], torch.zeros_like(teacher_labels[i, :(teacher_labels.size(1)-size)])), dim=0)
         teacher[i] = torch.cat((teacher[i, shift:end_shift, :], torch.zeros_like(
             teacher[i, :(teacher.size(1)-size), :])), dim=0)
     teacher = teacher[:, :max(teacher_answer_size), :]
-    teacher_labels = teacher_labels[:, :max(teacher_answer_size)]
 
     # -----
-    # student = torch.nn.functional.softmax(
-    #     student, dim=-1)
-    # teacher = torch.nn.functional.softmax(
-    #     teacher, dim=-1)
+    student = torch.nn.functional.softmax(
+        student, dim=-1)
+    teacher = torch.nn.functional.softmax(
+        teacher, dim=-1)
     
-    # print(f"\nPythia label:{student_tokenizer.decode(student_labels[0])}")
-    # print(f"Pythia:{student_tokenizer.decode(torch.argmax(student[0], dim=-1))}")
-    # print(f"Llama label:{teacher_tokenizer.decode(teacher_labels[0])}")
-    # print(f"Llama:{teacher_tokenizer.decode(torch.argmax(teacher[0], dim=-1))}")
+    if rank == 0 and debug:
+        student_labels = [row[row != -100] for row in student_labels]
+        teacher_labels = [row[row != -100] for row in teacher_labels]
+        print("------- Label shape -------")
+        print(f"Student label shape: {student_answer_size[0]}")
+        print(f"Teacher label shape: {teacher_answer_size[0]}")
+        print("------- Student Label -> Prediction -------")
+        print(student_tokenizer.batch_decode(student_labels[0]))
+        print(student_tokenizer.batch_decode(torch.argmax(student[0][:student_answer_size[0]], dim=-1)))
+        print("------- Teacher Label -> Prediction -------")
+        print(teacher_tokenizer.batch_decode(teacher_labels[0]))
+        print(teacher_tokenizer.batch_decode(torch.argmax(teacher[0][:teacher_answer_size[0]], dim=-1)))
+        print("------- Prediction Student -> Teacher  -------")
+        print(student_tokenizer.batch_decode(torch.argmax(student[0][:student_answer_size[0]], dim=-1)))
+        print(teacher_tokenizer.batch_decode(torch.argmax(teacher[0][:teacher_answer_size[0]], dim=-1)))
+
+    student = student.sort(dim=-1, descending=True).values
+    teacher = teacher.sort(dim=-1, descending=True).values
 
     # Softmax predictions
-    student = torch.nn.functional.softmax(
-        student, dim=-1).sort(dim=-1, descending=True).values
-    teacher = torch.nn.functional.softmax(
-        teacher, dim=-1).sort(dim=-1, descending=True).values
+    # student = torch.nn.functional.softmax(
+    #     student, dim=-1).sort(dim=-1, descending=True).values
+    # teacher = torch.nn.functional.softmax(
+    #     teacher, dim=-1).sort(dim=-1, descending=True).values
 
     # Pad to get same dictionary size
     # diff_size = student.size(2) - teacher.size(2)
@@ -141,7 +154,7 @@ def __get_start_and_size_answers(answer_tensors, mask=-100):
             break_index = (diff_indices != 1).nonzero()
             length = (break_index[0].item() +
                       1) if len(break_index) > 0 else len(indices)
-            answers_index.append(length)
+            answers_index.append(length-1)
     return answers_index, answers_size
 
 

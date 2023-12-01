@@ -96,7 +96,7 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                 with autocast():
                     if train_config.distillation:
                         student_output, teacher_output = model(**batch)
-                        loss, cross_loss, dist_loss = distil_loss(student_output, teacher_output, batch['student_labels'], batch['teacher_labels'], Alpha=distil_config.cross_entropy_factor, Beta=distil_config.distil_factor)
+                        loss, cross_loss, dist_loss = distil_loss(student_output, teacher_output, batch['student_labels'], batch['teacher_labels'], rank=rank, Alpha=distil_config.cross_entropy_factor, Beta=distil_config.distil_factor, debug=True)
                     else:
                         loss = model(**batch).loss
 
@@ -140,7 +140,7 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                     eval_ppl, eval_epoch_loss, eval_cross_loss, eval_dist_loss = evaluation(
                         model, train_config, distil_config, 
                         eval_dataloader if not train_config.distillation else zip(eval_dataloader, teacher_eval_dataloader),
-                        steps_per_eval, local_rank)
+                        steps_per_eval, local_rank, rank)
                     model.student.train() if train_config.distillation else model.train()
                     val_loss.append(eval_epoch_loss)
                     val_ppl.append(eval_ppl)
@@ -162,15 +162,16 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                                 "eval_epoch_loss": eval_epoch_loss,
                             })
 
-                    if eval_epoch_loss < best_val_loss:
-                        best_val_loss = eval_epoch_loss
-                        if rank == 0:
-                            print(f"best eval loss is {best_val_loss}")
+                    if eval_epoch_loss < best_val_loss or train_config.save_all:
+                        if eval_epoch_loss < best_val_loss:
+                            best_val_loss = eval_epoch_loss
+                            if rank == 0:
+                                print(f"best eval loss is {best_val_loss}")
                         if train_config.save_model:
                             checkpoint_start_time = time.perf_counter()
                             save_model(
                                 model if not train_config.distillation else model.student, 
-                                optimizer, epoch, train_config, distil_config, fsdp_config, rank
+                                optimizer, epoch, step, train_config, distil_config, fsdp_config, rank
                             )
                             checkpoint_end_time = time.perf_counter() - checkpoint_start_time
                             checkpoint_times.append(checkpoint_end_time)

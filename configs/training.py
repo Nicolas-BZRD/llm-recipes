@@ -36,3 +36,4 @@ class train_config:
     save_optimizer: bool=False # will be used if using FSDP
     use_fast_kernels: bool = False
     distillation: bool = False
+    save_all: bool = False
