@@ -48,10 +48,11 @@ def get_dataloader_kwargs(train_config, dataset, tokenizer, mode, distil_config=
                 rank=dist.get_rank(),
                 num_replicas=dist.get_world_size(),
                 shuffle=mode == "train",
+                seed=train_config.seed
             )
         else:
             kwargs["batch_sampler"] = LengthBasedBatchSampler(
-                dataset, batch_size, drop_last=True, shuffle=mode == "train")
+                dataset, batch_size, drop_last=True, shuffle=mode == "train", seed=train_config.seed)
         kwargs["collate_fn"] = DataCollatorForSeq2Seq(tokenizer)
     elif train_config.batching_strategy == "packing":
         if fsdp:
@@ -60,6 +61,7 @@ def get_dataloader_kwargs(train_config, dataset, tokenizer, mode, distil_config=
                 rank=dist.get_rank(),
                 num_replicas=dist.get_world_size(),
                 shuffle=mode == "train",
+                seed=train_config.seed
             )
         kwargs["batch_size"] = batch_size
         kwargs["drop_last"] = True

@@ -29,7 +29,6 @@ fullstate_save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True
 
 
 def load_model_sharded(model, rank, cfg):
-    # torch.manual_seed(103)
     folder_name = (
         cfg.dist_checkpoint_root_folder
         + "/"
@@ -111,7 +110,7 @@ def save_model_checkpoint(
     optimizer,
     rank,
     cfg,
-    epoch=1,
+    step=1,
 ):
     """saving model via rank0 cpu streaming and full_state_dict"""
 
@@ -135,14 +134,14 @@ def save_model_checkpoint(
         )
         save_dir = Path.cwd() / folder_name
         save_dir.mkdir(parents=True, exist_ok=True)
-        save_name = cfg.model_name + "-" + str(epoch) + ".pt"
+        save_name = cfg.model_name + "-" + str(step) + ".pt"
         save_full_path = str(save_dir) + "/" + save_name
 
         # save model
         torch.save(cpu_state, save_full_path)
 
         
-        print(f"model checkpoint saved for epoch {epoch} at {save_full_path}\n")
+        print(f"model checkpoint saved for epoch {step} at {save_full_path}\n")
       
 
 

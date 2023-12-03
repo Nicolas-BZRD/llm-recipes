@@ -154,8 +154,6 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                                 "eval_cross_loss": eval_cross_loss,
                                 "eval_dist_loss": eval_dist_loss
                             })
-                            # To save model with the best cross_loss
-                            eval_epoch_loss = eval_cross_loss
                         else:
                             wandb.log({
                                 "eval_ppl": eval_ppl,
@@ -171,7 +169,7 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                             checkpoint_start_time = time.perf_counter()
                             save_model(
                                 model if not train_config.distillation else model.student, 
-                                optimizer, epoch, step, train_config, distil_config, fsdp_config, rank
+                                optimizer, ((steps_per_epoch*epoch)+step), train_config, distil_config, fsdp_config, rank
                             )
                             checkpoint_end_time = time.perf_counter() - checkpoint_start_time
                             checkpoint_times.append(checkpoint_end_time)

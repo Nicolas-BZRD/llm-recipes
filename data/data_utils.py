@@ -80,6 +80,7 @@ def get_dataloader(dataset_config, train_config, tokenizer, rank, distil_config=
             dataset_val,
             num_workers=train_config.num_workers_dataloader,
             pin_memory=True,
+            shuffle=False,
             **val_dl_kwargs,
         )
         if rank == 0:
