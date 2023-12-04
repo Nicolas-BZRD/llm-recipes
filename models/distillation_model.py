@@ -119,6 +119,7 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
     mask = (distil_loss != 0) & ~((0.9999 <= distil_loss) & (distil_loss <= 1.0001))
     distil_loss = ((distil_loss*mask).sum(dim=-1)/mask.sum(dim=-1)).mean()
     cross_loss = student_output.loss
+    loss = Alpha*cross_loss + Beta*distil_loss
 
     if rank == 0 and debug:
         print("------------------------------")
@@ -133,7 +134,7 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
         print(f"Cross Loss all batch: {cross_loss}")
         print("------------------------------------------------------------------------------")
 
-    return Alpha*cross_loss + Beta*distil_loss, cross_loss, distil_loss
+    return loss, cross_loss, distil_loss
 
 
 def __get_start_and_size_answers(answer_tensors, mask=-100):
