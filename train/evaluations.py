@@ -23,7 +23,7 @@ def evaluation(model, train_config, distil_config, eval_dataloader, steps_per_ev
 
             if train_config.distillation:
                 outputs, teacher_output = model(**batch)
-                loss, cross_loss, dist_loss = distil_loss(outputs, teacher_output, batch['student_labels'], batch['teacher_labels'], rank)
+                loss, cross_loss, dist_loss = distil_loss(outputs, teacher_output, batch['student_labels'], batch['teacher_labels'], rank, debug=False)
                 eval_cross_loss += cross_loss.detach().float()
                 eval_dist_loss += dist_loss.detach().float()
             else:
