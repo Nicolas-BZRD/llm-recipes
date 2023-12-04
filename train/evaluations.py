@@ -3,10 +3,11 @@ import torch
 import torch.distributed as dist
 
 from tqdm import tqdm
-from models.distillation_model import preprocess_distillation_batch, distil_loss
+from models.distillation_model import DistillationLoss, preprocess_distillation_batch
 
-def evaluation(model, train_config, distil_config, eval_dataloader, steps_per_eval, local_rank, rank):
+def evaluation(model, train_config, distil_config, eval_dataloader, steps_per_eval, local_rank):
     if train_config.enable_fsdp or distil_config.enable_fsdp: world_size = int(os.environ["WORLD_SIZE"])
+    if train_config.distillation: distillation_loss = DistillationLoss()
     eval_loss = 0.0
     eval_cross_loss = 0.0
     eval_dist_loss = 0.0
@@ -23,7 +24,7 @@ def evaluation(model, train_config, distil_config, eval_dataloader, steps_per_ev
 
             if train_config.distillation:
                 outputs, teacher_output = model(**batch)
-                loss, cross_loss, dist_loss = distil_loss(outputs, teacher_output, batch['student_labels'], batch['teacher_labels'], rank, debug=True)
+                loss, cross_loss, dist_loss = distillation_loss(outputs, teacher_output, batch['student_labels'], batch['teacher_labels'])
                 eval_cross_loss += cross_loss.detach().float()
                 eval_dist_loss += dist_loss.detach().float()
             else:

@@ -1,7 +1,6 @@
 import os
 import time
 import torch
-import copy
 import wandb
 import torch.distributed as dist
 
@@ -12,7 +11,7 @@ from train.tools import clear_gpu_cache
 from train.evaluations import evaluation
 from train.save import save_train_params, save_model
 from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
-from models.distillation_model import distil_loss, preprocess_distillation_batch
+from models.distillation_model import DistillationLoss, preprocess_distillation_batch
 
 def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gradient_accumulation_steps, train_config, distil_config, dataset_config, teacher_train_dataloader=None, teacher_eval_dataloader=None, fsdp_config=None, local_rank=None, rank=None):
     # Weights & Biases tracking system initialization.
@@ -59,6 +58,10 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
             }
         )
 
+    # Init distillation loss if distillation is enabled
+    if train_config.distillation:
+        distillation_loss = DistillationLoss(distillation_weight=distil_config.distil_factor, debug=True, debug_rank=0)
+
     # Create a gradient scaler for fp16
     if train_config.use_fp16 and train_config.enable_fsdp:
         scaler = ShardedGradScaler()
@@ -96,7 +99,7 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                 with autocast():
                     if train_config.distillation:
                         student_output, teacher_output = model(**batch)
-                        loss, cross_loss, dist_loss = distil_loss(student_output, teacher_output, batch['student_labels'], batch['teacher_labels'], rank=rank, Alpha=distil_config.cross_entropy_factor, Beta=distil_config.distil_factor, debug=True, debug_rank=0)
+                        loss, cross_loss, dist_loss = distillation_loss(student_output, teacher_output, batch['student_labels'], batch['teacher_labels'], rank=rank)
                     else:
                         loss = model(**batch).loss
 
@@ -140,7 +143,7 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                     eval_ppl, eval_epoch_loss, eval_cross_loss, eval_dist_loss = evaluation(
                         model, train_config, distil_config, 
                         eval_dataloader if not train_config.distillation else zip(eval_dataloader, teacher_eval_dataloader),
-                        steps_per_eval, local_rank, rank)
+                        steps_per_eval, local_rank)
                     model.student.train() if train_config.distillation else model.train()
                     val_loss.append(eval_epoch_loss)
                     val_ppl.append(eval_ppl)

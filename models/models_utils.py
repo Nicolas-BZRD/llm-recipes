@@ -6,7 +6,7 @@ from policies import AnyPrecisionAdamW
 from policies import apply_fsdp_checkpointing
 from models.fsdp import fsdp_auto_wrap_policy
 from configs import fsdp_config as FSDP_CONFIG
-from models.distillation_model import DistilModel
+from models.distillation_model import DistillationModel
 from optimum.bettertransformer import BetterTransformer
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from configs.configs_utils import generate_peft_config, update_config
@@ -117,7 +117,7 @@ def get_distillation_models(train_config, distil_config, fsdp_config, rank, kwar
     update_config((teacher_fsdp_config), **dataclasses.asdict(distil_config))
     teacher_tokenizer, teacher_model = get_model(distil_config, distil_config, rank, kwargs)
 
-    return student_tokenizer, teacher_tokenizer, DistilModel(student_model, teacher_model)
+    return student_tokenizer, teacher_tokenizer, DistillationModel(student_model, teacher_model)
 
 def get_optimizer(model, train_config, fsdp_config):
     if fsdp_config.pure_bf16 and fsdp_config.optimizer == "anyprecision":
