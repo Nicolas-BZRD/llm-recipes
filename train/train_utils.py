@@ -96,7 +96,7 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                 with autocast():
                     if train_config.distillation:
                         student_output, teacher_output = model(**batch)
-                        loss, cross_loss, dist_loss = distil_loss(student_output, teacher_output, batch['student_labels'], batch['teacher_labels'], rank=rank, Alpha=distil_config.cross_entropy_factor, Beta=distil_config.distil_factor, debug=False)
+                        loss, cross_loss, dist_loss = distil_loss(student_output, teacher_output, batch['student_labels'], batch['teacher_labels'], rank=rank, Alpha=distil_config.cross_entropy_factor, Beta=distil_config.distil_factor, debug=True, debug_rank=0)
                     else:
                         loss = model(**batch).loss
 

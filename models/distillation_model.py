@@ -30,7 +30,7 @@ class DistilModel(nn.Module):
         return student_output, teacher_output
 
 
-def distil_loss(student_output, teacher_output, student_labels, teacher_labels, rank, Alpha=1, Beta=1, student_eos_skip=True, teacher_eos_skip=False, mask_labels=-100, debug=False):
+def distil_loss(student_output, teacher_output, student_labels, teacher_labels, rank, Alpha=1, Beta=1, student_eos_skip=True, teacher_eos_skip=False, mask_labels=-100, debug=False, debug_rank=0):
     student = student_output.logits
     teacher = teacher_output.logits
 
@@ -65,7 +65,7 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
     student = student[:, :mex_length, :]
     teacher = teacher[:, :mex_length, :]
     
-    if rank == 0 and debug:
+    if rank == debug_rank and debug:
         print("\n\n----------------------------------")
         print("------- Label / Prediction -------")
         print("----------------------------------")
@@ -96,7 +96,7 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
     elif diff_size < 0:
         student = F.pad(student, (0, abs(diff_size)), value=0)
 
-    if rank == 0 and debug:
+    if rank == debug_rank and debug:
         print("--------------------------------------------")
         print("---- Post-treatment tensor architecture ----")
         print("--------------------------------------------")
@@ -123,7 +123,7 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
     cross_loss = student_output.loss
     loss = Alpha*cross_loss + Beta*dist_loss
 
-    if rank == 0 and debug:
+    if rank == debug_rank and debug:
         print("------------------------------")
         print("------------ Loss ------------")
         print("------------------------------")
