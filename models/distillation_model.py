@@ -136,7 +136,7 @@ def distil_loss(student_output, teacher_output, student_labels, teacher_labels, 
         tmp_mask = (tmp != 0)
         tmp = ((tmp*tmp_mask).sum(dim=-1)/tmp_mask.sum(dim=-1)).nan_to_num()
         print(f"Mask: {tmp_mask[0]}")
-        print(f"Mean: {tmp[0]}")
+        print(f"Mean: {tmp}")
         print(f"Distil Loss all batch: {dist_loss}")
         print(f"Cross Loss all batch: {cross_loss}")
         print("------------------------------------------------------------------------------")
