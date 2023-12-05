@@ -161,7 +161,7 @@ class DistillationLoss(nn.Module):
         crossentropy_loss = self.crossentropy_weight * student_predictions.loss
 
         # Distillation loss
-        distillation_loss = torch.zeros(student.size(0))
+        distillation_loss = torch.zeros(student.size(0), device=student.device)
         for i in range(student.size(0)):
             size = min(student_answer_size[i], teacher_answer_size[i])
             distillation_loss[i] = abs(student[i][:size] - teacher[i][:size]).sum(-1).mean(-1)
