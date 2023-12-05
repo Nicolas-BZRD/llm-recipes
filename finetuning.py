@@ -14,6 +14,7 @@ from data.data_utils import (get_dataloader, get_distillation_dataloader)
 from train.tools import (setup, setup_environ_flags, clear_gpu_cache)
 from models.models_utils import (get_model, get_distillation_models, get_optimizer)
 
+os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = "true"
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 def main(**kwargs):

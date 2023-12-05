@@ -24,14 +24,14 @@ class train_config:
     val_batch_size: int=1
     peft_method: str = "lora" # None , llama_adapter, prefix
     use_peft: bool=False
-    output_dir: str = "trained_model/PEFT/"
+    output_dir: str = ""
     freeze_layers: bool = False
     num_freeze_layers: int = 1
     quantization: bool = False
     one_gpu: bool = False
     save_model: bool = True
     save_step: int = 1000
-    dist_checkpoint_root_folder: str="trained_model/FSDP/"
+    dist_checkpoint_root_folder: str=""
     dist_checkpoint_folder: str="fine-tuned" # will be used if using FSDP
     save_optimizer: bool=False # will be used if using FSDP
     use_fast_kernels: bool = False
