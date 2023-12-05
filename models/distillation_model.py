@@ -164,7 +164,7 @@ class DistillationLoss(nn.Module):
         distillation_loss = torch.zeros(student.size(0))
         for i in range(student.size(0)):
             size = min(student_answer_size[i], teacher_answer_size[i])
-            distillation_loss[i] = abs(student[:size] - teacher[:size]).sum(-1).mean(-1)
+            distillation_loss[i] = abs(student[i][:size] - teacher[i][:size]).sum(-1).mean(-1)
         distillation_loss = distillation_loss.mean()
         distillation_loss = self.distillation_weight * distillation_loss
         
