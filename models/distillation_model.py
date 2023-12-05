@@ -161,13 +161,20 @@ class DistillationLoss(nn.Module):
         crossentropy_loss = self.crossentropy_weight * student_predictions.loss
 
         # Distillation loss
-        distillation_loss = abs(student - teacher).sum(-1)
-        mask = (distillation_loss != 0) & ~(
-            (0.9999 <= distillation_loss) & (distillation_loss <= 1.0001))
-        distillation_loss = ((distillation_loss*mask).sum(dim=-1)/mask.sum(dim=-1)).nan_to_num()
-        mask = (distillation_loss != 0)
-        distillation_loss = ((distillation_loss*mask).sum(dim=-1)/mask.sum(dim=-1)).nan_to_num()
-        distil_loss = self.distillation_weight * distillation_loss
+        distillation_loss = torch.zeros(student.size(0))
+        for i in range(student.size(0)):
+            size = min(student_answer_size[i], teacher_answer_size[i])
+            distillation_loss[i] = abs(student[:size] - teacher[:size]).sum(-1).mean(-1)
+        distillation_loss = distillation_loss.mean()
+        distillation_loss = self.distillation_weight * distillation_loss
+        
+        ### OLD ###
+        # mask = (distillation_loss != 0) & ~(
+        #     (0.9999 <= distillation_loss) & (distillation_loss <= 1.0001))
+        # distillation_loss = ((distillation_loss*mask).sum(dim=-1)/mask.sum(dim=-1))
+        # mask = (distillation_loss != 0)
+        # distillation_loss = ((distillation_loss*mask).sum(dim=-1)/mask.sum(dim=-1))
+        # distil_loss = self.distillation_weight * distillation_loss
 
         if self.debug and rank == self.debug_rank:
             print("--------------------------------------")
@@ -177,7 +184,7 @@ class DistillationLoss(nn.Module):
             print(f"Distillation loss: {distillation_loss}")
             print(f"Total loss: {crossentropy_loss + distillation_loss}")
 
-        return crossentropy_loss + distil_loss, crossentropy_loss, distillation_loss
+        return crossentropy_loss + distillation_loss, crossentropy_loss, distillation_loss
 
     def __get_start_and_size_answers(self, answer_tensors):
         answers_index = []

@@ -100,6 +100,7 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                     if train_config.distillation:
                         student_output, teacher_output = model(**batch)
                         loss, cross_loss, dist_loss = distillation_loss(student_output, teacher_output, batch['student_labels'], batch['teacher_labels'], rank=rank)
+                        print(f"Loss at Rank {rank} is {loss}, cross_loss is {cross_loss}, dist_loss is {dist_loss}")
                     else:
                         loss = model(**batch).loss
 
@@ -149,7 +150,7 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                     val_ppl.append(eval_ppl)
                     
                     if rank == 0:
-                        print(f" {eval_ppl} {eval_epoch_loss}")
+                        print(f"Perplexity {eval_ppl}, loss {eval_epoch_loss}")
                         if train_config.distillation:
                             wandb.log({
                                 "eval_ppl": eval_ppl,
