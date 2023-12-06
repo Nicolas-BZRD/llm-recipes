@@ -35,8 +35,9 @@ def evaluation(model, train_config, distil_config, eval_dataloader, steps_per_ev
 
     if torch.cuda.device_count() > 1 and train_config.enable_fsdp or distil_config.enable_fsdp:
         dist.all_reduce(eval_loss, op=dist.ReduceOp.SUM)
-        dist.all_reduce(eval_cross_loss, op=dist.ReduceOp.SUM)
-        dist.all_reduce(eval_dist_loss, op=dist.ReduceOp.SUM)
+        if train_config.distillation:
+            dist.all_reduce(eval_cross_loss, op=dist.ReduceOp.SUM)
+            dist.all_reduce(eval_dist_loss, op=dist.ReduceOp.SUM)
 
     eval_loss /= steps_per_eval
     eval_cross_loss /= steps_per_eval

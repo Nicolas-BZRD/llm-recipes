@@ -3,7 +3,7 @@ import torch.cuda.nccl as nccl
 import torch.distributed as dist
 
 from pkg_resources import packaging
-from policies import fpSixteen, bfSixteen, get_llama_wrapper
+from policies import fpSixteen, bfSixteen, get_wrapper
 
 def get_parameter_dtypes(model):
     parameter_dtypes = {}
@@ -47,7 +47,7 @@ def get_policies(cfg, rank):
                 print(f"FP16 enabled")
         else:
             print(f"bFloat16 support not present. Using FP32, and not mixed precision")
-    wrapping_policy = get_llama_wrapper()
+    wrapping_policy = get_wrapper()
     return mixed_precision_policy, wrapping_policy
 
 def print_model_size(model, config, rank: int = 0) -> None:

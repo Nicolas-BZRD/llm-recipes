@@ -19,18 +19,18 @@ def save_model(model, optimizer, step, train_config, distil_config, fsdp_config,
         model.save_pretrained(path)
         if rank == 0: print(f"PEFT modules are saved in {path} directory")
 
-    elif train_config.enable_fsdp: # TODO Save all, change path
+    elif train_config.enable_fsdp:
         if fsdp_config.checkpoint_type == StateDictType.FULL_STATE_DICT:
             print("Saving the FSDP model checkpoints using FULL_STATE_DICT")
-            save_model_checkpoint(model, optimizer, rank, train_config, epoch=step)
+            save_model_checkpoint(model, optimizer, rank, path)
 
         elif fsdp_config.checkpoint_type == StateDictType.SHARDED_STATE_DICT:
             if train_config.save_optimizer:
                 print("Saving the FSDP model checkpoints and optimizer using SHARDED_STATE_DICT")
-                save_model_and_optimizer_sharded(model, rank, train_config, optim=optimizer)
+                save_model_and_optimizer_sharded(model, rank, path, optim=optimizer)
             else:
                 print("Saving the FSDP model checkpoints using SHARDED_STATE_DICT")
-                save_model_and_optimizer_sharded(model, rank, train_config)
+                save_model_and_optimizer_sharded(model, rank, path)
 
     else:
         if rank == 0:

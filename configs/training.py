@@ -31,8 +31,6 @@ class train_config:
     one_gpu: bool = False
     save_model: bool = True
     save_step: int = 1000
-    dist_checkpoint_root_folder: str=""
-    dist_checkpoint_folder: str="fine-tuned" # will be used if using FSDP
     save_optimizer: bool=False # will be used if using FSDP
     use_fast_kernels: bool = False
     distillation: bool = False

@@ -3,7 +3,7 @@ from peft.tuners import PrefixEncoder, PromptEmbedding, PromptEncoder
 from torch.distributed.fsdp.wrap import _or_policy, lambda_auto_wrap_policy, transformer_auto_wrap_policy
 
 # TODO
-def fsdp_auto_wrap_policy(model, transformer_layer_name):
+def fsdp_auto_wrap_policy(model, transformer_layer_name: list):
     def lambda_policy_fn(module):
         if (
             len(list(module.named_children())) == 0
@@ -20,10 +20,7 @@ def fsdp_auto_wrap_policy(model, transformer_layer_name):
             PrefixEncoder,
             PromptEncoder,
             PromptEmbedding,
-            transformer_layer_name,
-            # FullyShardedDataParallelPlugin.get_module_class_from_name(
-            #     model, transformer_layer_name
-            # ),
+            *transformer_layer_name,
         ),
     )
 

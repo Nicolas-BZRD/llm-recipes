@@ -49,8 +49,6 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                 "quantization": train_config.quantization,
                 "one_gpu": train_config.one_gpu,
                 "save_model": train_config.save_model,
-                "dist_checkpoint_root_folder": train_config.dist_checkpoint_root_folder,
-                "dist_checkpoint_folder": train_config.dist_checkpoint_folder,
                 "save_optimizer": train_config.save_optimizer,
                 "use_fast_kernels": train_config.use_fast_kernels,
                 "cross_entropy_factor": distil_config.cross_entropy_factor if train_config.distillation else -1,
@@ -100,7 +98,6 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                     if train_config.distillation:
                         student_output, teacher_output = model(**batch)
                         loss, cross_loss, dist_loss = distillation_loss(student_output, teacher_output, batch['student_labels'], batch['teacher_labels'], rank=rank)
-                        print(f"Loss at Rank {rank} is {loss}, cross_loss is {cross_loss}, dist_loss is {dist_loss}")
                     else:
                         loss = model(**batch).loss
 
