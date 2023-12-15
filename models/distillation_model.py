@@ -36,10 +36,11 @@ class DistillationModel(nn.Module):
 
 
 class DistillationLoss(nn.Module):
-    def __init__(self, crossentropy_weight=1, distillation_weight=1, skip_student_eos=True, skip_teacher_eos=False, ignore_index=-100, debug=False, debug_rank=0):
+    def __init__(self, crossentropy_weight=1, distillation_weight=1, temperature=1, skip_student_eos=False, skip_teacher_eos=False, ignore_index=-100, debug=False, debug_rank=0):
         super().__init__()
         self.crossentropy_weight = crossentropy_weight
         self.distillation_weight = distillation_weight
+        self.temperature = temperature
         self.skip_student_eos = skip_student_eos
         self.skip_teacher_eos = skip_teacher_eos
         self.ignore_index = ignore_index
@@ -83,8 +84,7 @@ class DistillationLoss(nn.Module):
             size = student_answer_size[i]
             end_shift = shift+size
             student[i] = torch.cat((
-                torch.nn.functional.softmax(
-                    student[i, shift:end_shift, :], dim=-1),
+                torch.nn.functional.softmax(student[i, shift:end_shift, :]/self.temperature, dim=-1),
                 torch.zeros_like(student[i, :(student.size(1)-size), :])), dim=0
             )
         for i in range(teacher.size(0)):
@@ -92,8 +92,7 @@ class DistillationLoss(nn.Module):
             size = teacher_answer_size[i]
             end_shift = shift+size
             teacher[i] = torch.cat((
-                torch.nn.functional.softmax(
-                    teacher[i, shift:end_shift, :], dim=-1),
+                torch.nn.functional.softmax(teacher[i, shift:end_shift, :]/self.temperature, dim=-1),
                 torch.zeros_like(teacher[i, :(teacher.size(1)-size), :])), dim=0
             )
 
@@ -167,14 +166,6 @@ class DistillationLoss(nn.Module):
             distillation_loss[i] = abs(student[i][:size] - teacher[i][:size]).sum(-1).mean(-1)
         distillation_loss = distillation_loss.mean()
         distillation_loss = self.distillation_weight * distillation_loss
-        
-        ### OLD ###
-        # mask = (distillation_loss != 0) & ~(
-        #     (0.9999 <= distillation_loss) & (distillation_loss <= 1.0001))
-        # distillation_loss = ((distillation_loss*mask).sum(dim=-1)/mask.sum(dim=-1))
-        # mask = (distillation_loss != 0)
-        # distillation_loss = ((distillation_loss*mask).sum(dim=-1)/mask.sum(dim=-1))
-        # distil_loss = self.distillation_weight * distillation_loss
 
         if self.debug and rank == self.debug_rank:
             print("--------------------------------------")

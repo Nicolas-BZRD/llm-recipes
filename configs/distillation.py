@@ -14,6 +14,7 @@ class distillation_config:
     num_freeze_layers: int = 0
     cross_entropy_factor: int = 1
     distil_factor: int = 1
+    temperature: int = 1
 
     # FSDP Config
     mixed_precision: bool = False

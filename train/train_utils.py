@@ -52,13 +52,14 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                 "save_optimizer": train_config.save_optimizer,
                 "use_fast_kernels": train_config.use_fast_kernels,
                 "cross_entropy_factor": distil_config.cross_entropy_factor if train_config.distillation else -1,
-                "distil_factor": distil_config.distil_factor if train_config.distillation else -1
+                "distil_factor": distil_config.distil_factor if train_config.distillation else -1,
+                "temperature": distil_config.temperature if train_config.distillation else -1
             }
         )
 
     # Init distillation loss if distillation is enabled
     if train_config.distillation:
-        distillation_loss = DistillationLoss(distillation_weight=distil_config.distil_factor, debug=False, debug_rank=0)
+        distillation_loss = DistillationLoss(distillation_weight=distil_config.distil_factor, temperature=distil_config.temperature, debug=False, debug_rank=0)
 
     # Create a gradient scaler for fp16
     if train_config.use_fp16 and train_config.enable_fsdp:
