@@ -51,6 +51,7 @@ class DistillationLoss(nn.Module):
             print("Distillation loss parameters:")
             print(f"Crossentropy weight: {crossentropy_weight}")
             print(f"Distillation weight: {distillation_weight}")
+            print(f"Temperature: {temperature}")
             print(f"Skip student eos: {skip_student_eos}")
             print(f"Skip teacher eos: {skip_teacher_eos}")
             print(f"Ignore index: {ignore_index}")
@@ -165,7 +166,7 @@ class DistillationLoss(nn.Module):
             size = min(student_answer_size[i], teacher_answer_size[i])
             distillation_loss[i] = abs(student[i][:size] - teacher[i][:size]).sum(-1).mean(-1)
         distillation_loss = distillation_loss.mean()
-        distillation_loss = self.distillation_weight * distillation_loss
+        distillation_loss = self.distillation_weight * (distillation_loss**(1/self.temperature))
 
         if self.debug and rank == self.debug_rank:
             print("--------------------------------------")

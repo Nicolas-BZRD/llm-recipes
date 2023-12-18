@@ -12,9 +12,9 @@ class distillation_config:
     use_peft: bool = False
     freeze_layers: bool = False
     num_freeze_layers: int = 0
-    cross_entropy_factor: int = 1
-    distil_factor: int = 1
-    temperature: int = 1
+    cross_entropy_factor: float = 1
+    distil_factor: float = 1
+    temperature: float = 1
 
     # FSDP Config
     mixed_precision: bool = False
