@@ -61,7 +61,7 @@ class DistillationLoss(nn.Module):
             self.student_tokenizer = AutoTokenizer.from_pretrained(
                 "EleutherAI/pythia-410m-deduped")
             self.teacher_tokenizer = AutoTokenizer.from_pretrained(
-                "meta-llama/Llama-2-7b-hf")
+                "meta-llama/Llama-2-7b-chat-hf")
 
     def forward(self, student_predictions, teacher_predictions, student_targets, teacher_targets, rank=0):
         student = student_predictions.logits
@@ -74,10 +74,8 @@ class DistillationLoss(nn.Module):
             teacher_targets)
 
         # Avoid eos token, if needed
-        if self.skip_student_eos:
-            student_answer_size = [size-1 for size in student_answer_size]
-        if self.skip_teacher_eos:
-            teacher_answer_size = [size-1 for size in teacher_answer_size]
+        if self.skip_student_eos: student_answer_size = [size-1 for size in student_answer_size]
+        if self.skip_teacher_eos: teacher_answer_size = [size-1 for size in teacher_answer_size]
 
         # Align answer first token, pad to right and compute softmax
         for i in range(student.size(0)):

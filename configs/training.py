@@ -17,7 +17,7 @@ class train_config:
     weight_decay: float=0.1
     pct_start=0.1
     div_factor=2
-    final_div_factor=2.5
+    final_div_factor=5
     seed: int=42
     use_fp16: bool=False
     mixed_precision: bool=True
