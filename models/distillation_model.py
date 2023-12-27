@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from soft_dtw_cuda import SoftDTW
 from transformers import AutoTokenizer
-
 
 def preprocess_distillation_batch(batch):
     batch_dict = {"student_" + key: value for key, value in batch[0].items()}
@@ -36,16 +36,20 @@ class DistillationModel(nn.Module):
 
 
 class DistillationLoss(nn.Module):
-    def __init__(self, crossentropy_weight=1, distillation_weight=1, temperature=1, skip_student_eos=False, skip_teacher_eos=False, ignore_index=-100, debug=False, debug_rank=0):
+    def __init__(self, crossentropy_weight=1, distillation_weight=1, temperature=1, soft_dtw=True, skip_student_eos=False, skip_teacher_eos=False, ignore_index=-100, debug=False, debug_rank=0):
         super().__init__()
         self.crossentropy_weight = crossentropy_weight
         self.distillation_weight = distillation_weight
         self.temperature = temperature
+        self.soft_dtw = soft_dtw
         self.skip_student_eos = skip_student_eos
         self.skip_teacher_eos = skip_teacher_eos
         self.ignore_index = ignore_index
         self.debug_rank = debug_rank
         self.debug = debug
+
+        if self.soft_dtw:
+            self.sdtw = SoftDTW(use_cuda=torch.cuda.is_available(), gamma=1e-6)
 
         if self.debug:
             print("Distillation loss parameters:")
@@ -161,10 +165,14 @@ class DistillationLoss(nn.Module):
         # Distillation loss
         distillation_loss = torch.zeros(student.size(0), device=student.device)
         for i in range(student.size(0)):
-            size = min(student_answer_size[i], teacher_answer_size[i])
-            distillation_loss[i] = abs(student[i][:size] - teacher[i][:size]).sum(-1).mean(-1)
-        distillation_loss = distillation_loss.mean()
-        distillation_loss = self.distillation_weight * (distillation_loss**(1/self.temperature))
+            if self.soft_dtw:
+                self.sdtw.bandwidth = abs(student_answer_size[i]-teacher_answer_size[i])
+                distillation_loss[i] = self.sdtw(student[i][:student_answer_size[i]], teacher[i][:teacher_answer_size[i]])
+            else:
+                size = min(student_answer_size[i], teacher_answer_size[i])
+                distillation_loss[i] = abs(student[i][:size] - teacher[i][:size]).sum(-1).mean(-1)
+            distillation_loss = distillation_loss.mean()
+            distillation_loss = self.distillation_weight * (distillation_loss**(1/self.temperature))
 
         if self.debug and rank == self.debug_rank:
             print("--------------------------------------")
