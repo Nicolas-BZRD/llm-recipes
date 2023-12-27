@@ -167,7 +167,7 @@ class DistillationLoss(nn.Module):
         for i in range(student.size(0)):
             if self.soft_dtw:
                 self.sdtw.bandwidth = abs(student_answer_size[i]-teacher_answer_size[i])
-                distillation_loss[i] = self.sdtw(student[i][:student_answer_size[i]], teacher[i][:teacher_answer_size[i]])
+                distillation_loss[i] = self.sdtw(torch.unsqueeze(student[i][:student_answer_size[i]], 0), torch.unsqueeze(teacher[i][:teacher_answer_size[i]], 0))
             else:
                 size = min(student_answer_size[i], teacher_answer_size[i])
                 distillation_loss[i] = abs(student[i][:size] - teacher[i][:size]).sum(-1).mean(-1)
