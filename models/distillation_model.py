@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from soft_dtw_cuda import SoftDTW
+from models.soft_dtw_cuda import SoftDTW
 from transformers import AutoTokenizer
 
 def preprocess_distillation_batch(batch):
