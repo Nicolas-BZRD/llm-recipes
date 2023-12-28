@@ -15,6 +15,7 @@ class distillation_config:
     cross_entropy_factor: float = 1
     distil_factor: float = 1
     temperature: float = 1
+    dtw: bool = False
 
     # FSDP Config
     mixed_precision: bool = False
