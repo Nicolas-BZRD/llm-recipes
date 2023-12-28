@@ -56,6 +56,7 @@ class DistillationLoss(nn.Module):
             print(f"Crossentropy weight: {crossentropy_weight}")
             print(f"Distillation weight: {distillation_weight}")
             print(f"Temperature: {temperature}")
+            print(f"Soft DTW: {soft_dtw}")
             print(f"Skip student eos: {skip_student_eos}")
             print(f"Skip teacher eos: {skip_teacher_eos}")
             print(f"Ignore index: {ignore_index}")
