@@ -13,8 +13,9 @@ class distillation_config:
     freeze_layers: bool = False
     num_freeze_layers: int = 0
     cross_entropy_factor: float = 1
-    distil_factor: float = 1
-    temperature: float = 1
+    distil_factor: float = 1.5
+    student_temperature: float = 1
+    teacher_temperature: float = 1
     dtw: bool = False
 
     # FSDP Config
@@ -26,7 +27,3 @@ class distillation_config:
     fsdp_cpu_offload: bool = False
     pure_bf16: bool = False
     optimizer: str = "AdamW"
-
-    # Dataset Config
-    context: bool = False
-    few_shot: int = 0

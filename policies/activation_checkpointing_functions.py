@@ -1,6 +1,8 @@
 from functools import partial
 from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXLayer
+from  transformers.models.mistral.modeling_mistral import MistralDecoderLayer
+from transformers.models.falcon.modeling_falcon import FalconDecoderLayer
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     checkpoint_wrapper,
     CheckpointImpl,
@@ -12,7 +14,7 @@ non_reentrant_wrapper = partial(
     checkpoint_impl=CheckpointImpl.NO_REENTRANT,
 )
 
-check_fn = lambda submodule: isinstance(submodule, (LlamaDecoderLayer, GPTNeoXLayer))
+check_fn = lambda submodule: isinstance(submodule, (LlamaDecoderLayer, GPTNeoXLayer, MistralDecoderLayer, FalconDecoderLayer))
 
 
 def apply_fsdp_checkpointing(model):

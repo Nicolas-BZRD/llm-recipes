@@ -7,7 +7,7 @@ from models.distillation_model import DistillationLoss, preprocess_distillation_
 
 def evaluation(model, train_config, distil_config, eval_dataloader, steps_per_eval, local_rank):
     if train_config.enable_fsdp or distil_config.enable_fsdp: world_size = int(os.environ["WORLD_SIZE"])
-    if train_config.distillation: distillation_loss = DistillationLoss()
+    if train_config.distillation: distillation_loss = DistillationLoss(skip_student_eos=True)
     eval_loss = 0.0
     eval_cross_loss = 0.0
     eval_dist_loss = 0.0

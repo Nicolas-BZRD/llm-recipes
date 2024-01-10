@@ -13,6 +13,8 @@ from configs.configs_utils import generate_peft_config, update_config
 from peft import get_peft_model, prepare_model_for_int8_training
 from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXLayer
+from transformers.models.mistral.modeling_mistral import MistralDecoderLayer
+from transformers.models.falcon.modeling_falcon import FalconDecoderLayer
 from torch.distributed.fsdp.fully_sharded_data_parallel import CPUOffload
 
 from torch.distributed.fsdp import (
@@ -82,7 +84,7 @@ def set_model(model, train_config, fsdp_config, rank, kwargs):
         if fsdp_config.pure_bf16: model.to(torch.bfloat16)
 
         mixed_precision_policy, wrapping_policy = get_policies(fsdp_config, rank)
-        my_auto_wrapping_policy = fsdp_auto_wrap_policy(model, [LlamaDecoderLayer, GPTNeoXLayer])
+        my_auto_wrapping_policy = fsdp_auto_wrap_policy(model, [LlamaDecoderLayer, GPTNeoXLayer, MistralDecoderLayer, FalconDecoderLayer])
 
         model = FSDP(
             model,

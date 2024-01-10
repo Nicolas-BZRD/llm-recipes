@@ -28,7 +28,6 @@ class train_config:
     freeze_layers: bool = False
     num_freeze_layers: int = 1
     quantization: bool = False
-    one_gpu: bool = False
     save_model: bool = True
     save_step: int = 1000
     save_optimizer: bool=False # will be used if using FSDP

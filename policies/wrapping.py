@@ -2,6 +2,8 @@ import functools
 
 from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXLayer
+from  transformers.models.mistral.modeling_mistral import MistralDecoderLayer
+from transformers.models.falcon.modeling_falcon import FalconDecoderLayer
 from torch.distributed.fsdp.wrap import (
     transformer_auto_wrap_policy,
     size_based_auto_wrap_policy,
@@ -21,6 +23,8 @@ def get_wrapper():
         transformer_layer_cls={
             LlamaDecoderLayer,
             GPTNeoXLayer,
+            MistralDecoderLayer,
+            FalconDecoderLayer,
         },
     )
 

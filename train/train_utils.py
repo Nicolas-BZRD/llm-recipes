@@ -18,20 +18,15 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
     os.environ["WANDB__SERVICE_WAIT"] = "300"
     if rank == 0:
         wandb.init(
-            project=train_config.project_name,
-            name=f"{train_config.model_name.split('/')[-1]}_{dataset_config.file.split('/')[-1]}_{int(time.time())}",
+            project=f"llm_distillation_{dataset_config.file.split('/')[-1][:-3]}",
+            name=f"{train_config.model_name.split('/')[-1]}-{model.teacher.name_or_path.split('/')[-1]}-d{distil_config.distil_factor}-t{distil_config.teacher_temperature}{distil_config.student_temperature}" if train_config.distillation else f"{train_config.model_name.split('/')[-1]}",
             config={
                 "model_name": train_config.model_name.split('/')[-1],
                 "dataset": dataset_config.file.split('/')[-1],
-                "enable_fsdp": train_config.enable_fsdp,
-                "low_cpu_fsdp": train_config.low_cpu_fsdp,
-                "run_validation": train_config.run_validation,
                 "batch_size_training": train_config.batch_size_training,
-                "batching_strategy": train_config.batching_strategy,
-                "context_length": train_config.context_length,
+                "val_batch_size": train_config.val_batch_size,
                 "gradient_accumulation_steps": train_config.gradient_accumulation_steps,
                 "num_epochs": train_config.num_epochs,
-                "num_workers_dataloader": train_config.num_workers_dataloader,
                 "lr": train_config.lr,
                 "weight_decay": train_config.weight_decay,
                 "pct_start": train_config.pct_start,
@@ -40,26 +35,21 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
                 "seed": train_config.seed,
                 "use_fp16": train_config.use_fp16,
                 "mixed_precision": train_config.mixed_precision,
-                "val_batch_size": train_config.val_batch_size,
                 "peft_method": train_config.peft_method,
                 "use_peft": train_config.use_peft,
-                "output_dir": train_config.output_dir,
                 "freeze_layers": train_config.freeze_layers,
                 "num_freeze_layers": train_config.num_freeze_layers,
                 "quantization": train_config.quantization,
-                "one_gpu": train_config.one_gpu,
-                "save_model": train_config.save_model,
-                "save_optimizer": train_config.save_optimizer,
-                "use_fast_kernels": train_config.use_fast_kernels,
                 "cross_entropy_factor": distil_config.cross_entropy_factor if train_config.distillation else -1,
                 "distil_factor": distil_config.distil_factor if train_config.distillation else -1,
-                "temperature": distil_config.temperature if train_config.distillation else -1
+                "student_temperature": distil_config.student_temperature if train_config.distillation else -1,
+                "teacher_temperature": distil_config.teacher_temperature if train_config.distillation else -1
             }
         )
 
     # Init distillation loss if distillation is enabled
     if train_config.distillation:
-        distillation_loss = DistillationLoss(distillation_weight=distil_config.distil_factor, temperature=distil_config.temperature, skip_student_eos=True, soft_dtw=distil_config.dtw, debug=True, debug_rank=0)
+        distillation_loss = DistillationLoss(distillation_weight=distil_config.distil_factor, student_temperature=distil_config.student_temperature, teacher_temperature=distil_config.teacher_temperature, skip_student_eos=True, soft_dtw=distil_config.dtw, debug=True, debug_rank=0, tokenizer_student=model.student.name_or_path, tokenizer_teacher=model.teacher.name_or_path)
 
     # Create a gradient scaler for fp16
     if train_config.use_fp16 and train_config.enable_fsdp:

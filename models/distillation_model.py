@@ -36,11 +36,12 @@ class DistillationModel(nn.Module):
 
 
 class DistillationLoss(nn.Module):
-    def __init__(self, crossentropy_weight=1, distillation_weight=1, temperature=1, soft_dtw=True, skip_student_eos=False, skip_teacher_eos=False, ignore_index=-100, debug=False, debug_rank=0):
+    def __init__(self, crossentropy_weight=1, distillation_weight=1, student_temperature=1, teacher_temperature=1, soft_dtw=False, skip_student_eos=False, skip_teacher_eos=False, ignore_index=-100, debug=False, debug_rank=0, tokenizer_student=None, tokenizer_teacher=None):
         super().__init__()
         self.crossentropy_weight = crossentropy_weight
         self.distillation_weight = distillation_weight
-        self.temperature = temperature
+        self.student_temperature = student_temperature
+        self.teacher_temperature = teacher_temperature
         self.soft_dtw = soft_dtw
         self.skip_student_eos = skip_student_eos
         self.skip_teacher_eos = skip_teacher_eos
@@ -55,7 +56,8 @@ class DistillationLoss(nn.Module):
             print("Distillation loss parameters:")
             print(f"Crossentropy weight: {crossentropy_weight}")
             print(f"Distillation weight: {distillation_weight}")
-            print(f"Temperature: {temperature}")
+            print(f"Student temperature: {student_temperature}")
+            print(f"Teacher temperature: {teacher_temperature}")
             print(f"Soft DTW: {soft_dtw}")
             print(f"Skip student eos: {skip_student_eos}")
             print(f"Skip teacher eos: {skip_teacher_eos}")
@@ -63,10 +65,8 @@ class DistillationLoss(nn.Module):
             print(f"Debug: {debug}")
             print(f"Debug rank: {debug_rank}")
 
-            self.student_tokenizer = AutoTokenizer.from_pretrained(
-                "EleutherAI/pythia-410m-deduped")
-            self.teacher_tokenizer = AutoTokenizer.from_pretrained(
-                "meta-llama/Llama-2-7b-chat-hf")
+            self.student_tokenizer = AutoTokenizer.from_pretrained(tokenizer_student)
+            self.teacher_tokenizer = AutoTokenizer.from_pretrained(tokenizer_teacher)
 
     def forward(self, student_predictions, teacher_predictions, student_targets, teacher_targets, rank=0):
         student = student_predictions.logits
@@ -88,7 +88,7 @@ class DistillationLoss(nn.Module):
             size = student_answer_size[i]
             end_shift = shift+size
             student[i] = torch.cat((
-                torch.nn.functional.softmax(student[i, shift:end_shift, :]/self.temperature, dim=-1),
+                torch.nn.functional.softmax(student[i, shift:end_shift, :]/self.student_temperature, dim=-1),
                 torch.zeros_like(student[i, :(student.size(1)-size), :])), dim=0
             )
         for i in range(teacher.size(0)):
@@ -96,7 +96,7 @@ class DistillationLoss(nn.Module):
             size = teacher_answer_size[i]
             end_shift = shift+size
             teacher[i] = torch.cat((
-                torch.nn.functional.softmax(teacher[i, shift:end_shift, :]/self.temperature, dim=-1),
+                torch.nn.functional.softmax(teacher[i, shift:end_shift, :]/self.teacher_temperature, dim=-1),
                 torch.zeros_like(teacher[i, :(teacher.size(1)-size), :])), dim=0
             )
 
@@ -179,7 +179,7 @@ class DistillationLoss(nn.Module):
                 size = min(student_answer_size[i], teacher_answer_size[i])
                 distillation_loss[i] = abs(student[i][:size] - teacher[i][:size]).sum(-1).mean(-1)
             distillation_loss = distillation_loss.mean()
-            distillation_loss = self.distillation_weight * (distillation_loss**(1/self.temperature))
+            distillation_loss = self.distillation_weight * (distillation_loss)
 
         if self.debug and rank == self.debug_rank:
             print("--------------------------------------")

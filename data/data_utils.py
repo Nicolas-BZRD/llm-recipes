@@ -47,7 +47,7 @@ def get_dataloader(dataset_config, train_config, tokenizer, rank, distil_config=
     dataset_train = get_dataset(
         dataset_config,
         tokenizer,
-        split=dataset_config.train_split
+        split="train"
     )
     if train_config.batching_strategy == "packing":
         dataset_train = ConcatDataset(
@@ -68,7 +68,7 @@ def get_dataloader(dataset_config, train_config, tokenizer, rank, distil_config=
         dataset_val = get_dataset(
             dataset_config,
             tokenizer,
-            split=dataset_config.val_split,
+            split="validation",
         )
 
         if train_config.batching_strategy == "packing":
@@ -91,10 +91,9 @@ def get_dataloader(dataset_config, train_config, tokenizer, rank, distil_config=
 
 
 def get_distillation_dataloader(dataset_config, train_config, distil_config, student_tokenizer, teacher_tokenizer, rank):
+    dataset_config.generated_by = teacher_tokenizer.name_or_path
+
     student_train_dataloader, student_eval_dataloader = get_dataloader(dataset_config, train_config, student_tokenizer, rank, distil_config)
-    
-    dataset_config_teacher = dataset_config
-    dataset_config_teacher.context, dataset_config_teacher.few_shot = distil_config.context, distil_config.few_shot
-    teacher_train_dataloader, teacher_eval_dataloader = get_dataloader(dataset_config_teacher, train_config, teacher_tokenizer, rank, distil_config)
+    teacher_train_dataloader, teacher_eval_dataloader = get_dataloader(dataset_config, train_config, teacher_tokenizer, rank, distil_config)
 
     return student_train_dataloader, teacher_train_dataloader, student_eval_dataloader, teacher_eval_dataloader
