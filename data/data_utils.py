@@ -54,7 +54,7 @@ def get_dataloader(dataset_config, train_config, tokenizer, rank, distil_config=
             dataset_train, chunk_size=train_config.context_length)
     
     if train_config.context_length:
-        dataset_train = dataset_train.filter(lambda item: len(item['input_ids']) > train_config.context_length)
+        dataset_train = dataset_train.filter(lambda item: len(item['input_ids']) <= train_config.context_length)
 
     train_dl_kwargs = get_dataloader_kwargs(train_config, dataset_train, tokenizer, "train", distil_config)
     train_dataloader = torch.utils.data.DataLoader(
@@ -75,7 +75,7 @@ def get_dataloader(dataset_config, train_config, tokenizer, rank, distil_config=
         )
 
         if train_config.context_length:
-            dataset_val = dataset_val.filter(lambda item: len(item['input_ids']) > train_config.context_length)
+            dataset_val = dataset_val.filter(lambda item: len(item['input_ids']) <= train_config.context_length)
 
         if train_config.batching_strategy == "packing":
             dataset_val = ConcatDataset(
