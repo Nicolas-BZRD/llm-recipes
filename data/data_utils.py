@@ -52,6 +52,9 @@ def get_dataloader(dataset_config, train_config, tokenizer, rank, distil_config=
     if train_config.batching_strategy == "packing":
         dataset_train = ConcatDataset(
             dataset_train, chunk_size=train_config.context_length)
+    
+    if train_config.context_length:
+        dataset_train = dataset_train.filter(lambda item: len(item['input_ids']) > train_config.context_length)
 
     train_dl_kwargs = get_dataloader_kwargs(train_config, dataset_train, tokenizer, "train", distil_config)
     train_dataloader = torch.utils.data.DataLoader(
@@ -70,6 +73,9 @@ def get_dataloader(dataset_config, train_config, tokenizer, rank, distil_config=
             tokenizer,
             split="validation",
         )
+
+        if train_config.context_length:
+            dataset_val = dataset_val.filter(lambda item: len(item['input_ids']) > train_config.context_length)
 
         if train_config.batching_strategy == "packing":
             dataset_val = ConcatDataset(
@@ -94,6 +100,9 @@ def get_distillation_dataloader(dataset_config, train_config, distil_config, stu
     dataset_config.generated_by = teacher_tokenizer.name_or_path
 
     student_train_dataloader, student_eval_dataloader = get_dataloader(dataset_config, train_config, student_tokenizer, rank, distil_config)
+    tmp = train_config.context_length
+    train_config.context_length = None
     teacher_train_dataloader, teacher_eval_dataloader = get_dataloader(dataset_config, train_config, teacher_tokenizer, rank, distil_config)
+    train_config.context_length = tmp
 
     return student_train_dataloader, teacher_train_dataloader, student_eval_dataloader, teacher_eval_dataloader
