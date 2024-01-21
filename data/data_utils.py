@@ -6,6 +6,8 @@ from pathlib import Path
 from data.concatenator import ConcatDataset
 from configs.configs_utils import get_dataloader_kwargs
 
+sort_index = []
+sort_index_val = []
 
 def load_module_from_py_file(py_file: str) -> object:
     """
@@ -44,6 +46,9 @@ def get_dataset(dataset_config, tokenizer, split: str) -> torch.utils.data.Datas
 
 
 def get_dataloader(dataset_config, train_config, tokenizer, rank, distil_config=None):
+    global sort_index
+    global sort_index_val
+    
     dataset_train = get_dataset(
         dataset_config,
         tokenizer,
@@ -53,8 +58,10 @@ def get_dataloader(dataset_config, train_config, tokenizer, rank, distil_config=
         dataset_train = ConcatDataset(
             dataset_train, chunk_size=train_config.context_length)
     
-    if train_config.context_length:
-        dataset_train = dataset_train.filter(lambda item: len(item['input_ids']) <= train_config.context_length)
+    if train_config.context_length and not sort_index:
+        sort_index = [idx for idx, ex in enumerate(dataset_train) if len(ex['input_ids']) <= train_config.context_length]
+    if train_config.context_length and sort_index:
+        dataset_train = dataset_train.select(sort_index)
 
     train_dl_kwargs = get_dataloader_kwargs(train_config, dataset_train, tokenizer, "train", distil_config)
     train_dataloader = torch.utils.data.DataLoader(
@@ -74,8 +81,10 @@ def get_dataloader(dataset_config, train_config, tokenizer, rank, distil_config=
             split="validation",
         )
 
-        if train_config.context_length:
-            dataset_val = dataset_val.filter(lambda item: len(item['input_ids']) <= train_config.context_length)
+        if train_config.context_length and not sort_index_val:
+            sort_index_val = [idx for idx, ex in enumerate(dataset_val) if len(ex['input_ids']) <= train_config.context_length]
+        if sort_index_val:
+            dataset_val = dataset_val.select(sort_index_val)
 
         if train_config.batching_strategy == "packing":
             dataset_val = ConcatDataset(
@@ -100,9 +109,6 @@ def get_distillation_dataloader(dataset_config, train_config, distil_config, stu
     dataset_config.generated_by = teacher_tokenizer.name_or_path
 
     student_train_dataloader, student_eval_dataloader = get_dataloader(dataset_config, train_config, student_tokenizer, rank, distil_config)
-    tmp = train_config.context_length
-    train_config.context_length = None
     teacher_train_dataloader, teacher_eval_dataloader = get_dataloader(dataset_config, train_config, teacher_tokenizer, rank, distil_config)
-    train_config.context_length = tmp
 
     return student_train_dataloader, teacher_train_dataloader, student_eval_dataloader, teacher_eval_dataloader

@@ -13,8 +13,7 @@ class LengthBasedBatchSampler(torch.utils.data.BatchSampler):
             self.lengths = [len(d) for d in data_source]
         self.batch_size = batch_size
         self.drop_last = drop_last
-        # self.shuffle = shuffle
-        self.shuffle = False
+        self.shuffle = shuffle
         self.seed = seed
 
     def __iter__(self):
