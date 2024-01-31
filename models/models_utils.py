@@ -8,7 +8,7 @@ from models.fsdp import fsdp_auto_wrap_policy
 from configs import fsdp_config as FSDP_CONFIG
 from models.distillation_model import DistillationModel
 from optimum.bettertransformer import BetterTransformer
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer
 from configs.configs_utils import generate_peft_config, update_config
 from peft import get_peft_model, prepare_model_for_int8_training
 from transformers.models.llama.modeling_llama import LlamaDecoderLayer
@@ -35,12 +35,20 @@ def load_tokenizer(name):
 def load_model(train_config, rank):
     use_cache = False if train_config.enable_fsdp else True
     def load():
-        return AutoModelForCausalLM.from_pretrained(
-            train_config.model_name,
-            load_in_8bit=True if train_config.quantization else False,
-            device_map="auto" if train_config.quantization else None,
-            use_cache=use_cache,
-        )
+        if "mt0" in train_config.model_name:
+            return AutoModelForSeq2SeqLM.from_pretrained(
+                train_config.model_name,
+                load_in_8bit=True if train_config.quantization else False,
+                device_map="auto" if train_config.quantization else None,
+                use_cache=use_cache,
+            )
+        else:
+            return AutoModelForCausalLM.from_pretrained(
+                train_config.model_name,
+                load_in_8bit=True if train_config.quantization else False,
+                device_map="auto" if train_config.quantization else None,
+                use_cache=use_cache,
+            )
     
     if not train_config.enable_fsdp:
         model = load()
