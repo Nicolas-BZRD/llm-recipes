@@ -34,3 +34,4 @@ class train_config:
     use_fast_kernels: bool = False
     distillation: bool = False
     save_all: bool = False
+    encoder_decoder: bool = False
