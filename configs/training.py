@@ -35,4 +35,3 @@ class train_config:
     distillation: bool = False
     save_all: bool = False
     training_size: int = 1
-    encoder_decoder: bool = False
