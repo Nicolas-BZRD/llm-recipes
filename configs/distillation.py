@@ -17,6 +17,7 @@ class distillation_config:
     student_temperature: float = 1
     teacher_temperature: float = 1
     dtw: bool = False
+    encoder_decoder: bool = False
     
     # FSDP Config
     mixed_precision: bool = False

@@ -22,7 +22,7 @@ def load_module_from_py_file(py_file: str) -> object:
     return module
 
 
-def get_dataset(dataset_config, tokenizer, split: str, size=1) -> torch.utils.data.Dataset:
+def get_dataset(dataset_config, tokenizer, split: str) -> torch.utils.data.Dataset:
     if not dataset_config.file:
         raise ValueError(
             f"Dataset not specified. Please select a dataset path with the parameter '--dataset.file'.")
@@ -39,8 +39,7 @@ def get_dataset(dataset_config, tokenizer, split: str, size=1) -> torch.utils.da
     module = load_module_from_py_file(module_path.as_posix())
 
     try:
-        if size != 1: return getattr(module, func_name)(dataset_config, tokenizer, split, size)
-        else: return getattr(module, func_name)(dataset_config, tokenizer, split)
+        return getattr(module, func_name)(dataset_config, tokenizer, split)
     except Exception as err:
         print(err)
         raise ValueError(f"It seems like the given method name ({func_name}) is not present in the load.py file ({module_path.as_posix()}).")
@@ -54,7 +53,6 @@ def get_dataloader(dataset_config, train_config, tokenizer, rank, distil_config=
         dataset_config,
         tokenizer,
         split="train",
-        size=train_config.training_size
     )
     if train_config.batching_strategy == "packing":
         dataset_train = ConcatDataset(
@@ -111,6 +109,7 @@ def get_distillation_dataloader(dataset_config, train_config, distil_config, stu
     dataset_config.generated_by = teacher_tokenizer.name_or_path
 
     student_train_dataloader, student_eval_dataloader = get_dataloader(dataset_config, train_config, student_tokenizer, rank, distil_config)
+    dataset_config.encoder_decoder = True if distil_config.encoder_decoder else False
     teacher_train_dataloader, teacher_eval_dataloader = get_dataloader(dataset_config, train_config, teacher_tokenizer, rank, distil_config)
-
+    dataset_config.encoder_decoder = train_config.encoder_decoder
     return student_train_dataloader, teacher_train_dataloader, student_eval_dataloader, teacher_eval_dataloader

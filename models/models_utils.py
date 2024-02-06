@@ -8,7 +8,7 @@ from models.fsdp import fsdp_auto_wrap_policy
 from configs import fsdp_config as FSDP_CONFIG
 from models.distillation_model import DistillationModel
 from optimum.bettertransformer import BetterTransformer
-from transformers import AutoModelForCausalLM, MT5ForConditionalGeneration, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoModelWithLMHead, AutoTokenizer
 from configs.configs_utils import generate_peft_config, update_config
 from peft import get_peft_model, prepare_model_for_int8_training
 from transformers.models.llama.modeling_llama import LlamaDecoderLayer
@@ -27,16 +27,17 @@ from models.tools import (
     get_policies
 )
 
-def load_tokenizer(name):
+def load_tokenizer(name, encoder_decoder):
     tokenizer = AutoTokenizer.from_pretrained(name)
-    tokenizer.pad_token_id = tokenizer.eos_token_id
+    if not encoder_decoder:
+        tokenizer.pad_token_id = tokenizer.eos_token_id
     return tokenizer
 
 def load_model(train_config, rank):
     use_cache = False if train_config.enable_fsdp else True
     def load():
         if "mt0" in train_config.model_name:
-            return MT5ForConditionalGeneration.from_pretrained(
+            return AutoModelWithLMHead.from_pretrained(
                 train_config.model_name,
                 load_in_8bit=True if train_config.quantization else False,
                 device_map="auto" if train_config.quantization else None,
@@ -117,7 +118,7 @@ def set_model(model, train_config, fsdp_config, rank, kwargs):
 def get_model(train_config, fsdp_config, rank, kwargs):
     model = load_model(train_config, rank)
     model = set_model(model, train_config, fsdp_config, rank, kwargs)
-    tokenizer = load_tokenizer(train_config.model_name)
+    tokenizer = load_tokenizer(train_config.model_name, train_config.encoder_decoder)
     tokenizer.pad_token_id = tokenizer.eos_token_id
     return tokenizer, model
 

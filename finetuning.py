@@ -45,6 +45,7 @@ def main(**kwargs):
     if rank == 0: print(model)
 
     # Load Data
+    data_config.encoder_decoder = train_config.encoder_decoder
     if train_config.distillation:
         train_dataloader, teacher_train_dataloader, eval_dataloader, teacher_eval_dataloader = get_distillation_dataloader(data_config, train_config, distil_config, student_tokenizer, teacher_tokenizer, rank)
     else:
