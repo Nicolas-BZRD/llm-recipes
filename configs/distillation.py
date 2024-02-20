@@ -16,7 +16,6 @@ class distillation_config:
     distil_factor: float = 1.5
     student_temperature: float = 1
     teacher_temperature: float = 1
-    dtw: bool = False
     encoder_decoder: bool = False
     
     # FSDP Config

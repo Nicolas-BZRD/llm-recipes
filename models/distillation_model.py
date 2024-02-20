@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.soft_dtw_cuda import SoftDTW
 from transformers import AutoTokenizer
 
 def preprocess_distillation_batch(batch):
@@ -36,21 +35,17 @@ class DistillationModel(nn.Module):
 
 
 class DistillationLoss(nn.Module):
-    def __init__(self, crossentropy_weight=1, distillation_weight=1, student_temperature=1, teacher_temperature=1, soft_dtw=False, skip_student_eos=False, skip_teacher_eos=False, ignore_index=-100, debug=False, debug_rank=0, tokenizer_student=None, tokenizer_teacher=None):
+    def __init__(self, crossentropy_weight=1, distillation_weight=1, student_temperature=1, teacher_temperature=1, skip_student_eos=False, skip_teacher_eos=False, ignore_index=-100, debug=False, debug_rank=0, tokenizer_student=None, tokenizer_teacher=None):
         super().__init__()
         self.crossentropy_weight = crossentropy_weight
         self.distillation_weight = distillation_weight
         self.student_temperature = student_temperature
         self.teacher_temperature = teacher_temperature
-        self.soft_dtw = soft_dtw
         self.skip_student_eos = skip_student_eos
         self.skip_teacher_eos = skip_teacher_eos
         self.ignore_index = ignore_index
         self.debug_rank = debug_rank
         self.debug = debug
-
-        if self.soft_dtw:
-            self.sdtw = SoftDTW(use_cuda=torch.cuda.is_available(), gamma=1e-6)
 
         if self.debug:
             print("Distillation loss parameters:")
@@ -58,7 +53,6 @@ class DistillationLoss(nn.Module):
             print(f"Distillation weight: {distillation_weight}")
             print(f"Student temperature: {student_temperature}")
             print(f"Teacher temperature: {teacher_temperature}")
-            print(f"Soft DTW: {soft_dtw}")
             print(f"Skip student eos: {skip_student_eos}")
             print(f"Skip teacher eos: {skip_teacher_eos}")
             print(f"Ignore index: {ignore_index}")
@@ -163,23 +157,12 @@ class DistillationLoss(nn.Module):
         # Cross entropy loss
         crossentropy_loss = self.crossentropy_weight * student_predictions.loss
 
-        # Distillation loss
-        if self.soft_dtw:
-            sdtw_loss = torch.zeros(student.size(0), device=student.device)
-            for i in range(student.size(0)):
-                self.sdtw.bandwidth = abs(student_answer_size[i]-teacher_answer_size[i])
-                sdtw_loss[i] = self.sdtw(
-                    torch.unsqueeze(student[i][:student_answer_size[i]], 0), torch.unsqueeze(teacher[i][:teacher_answer_size[i]], 0)
-                )
-                distillation_loss = sdtw_loss.mean()
-                distillation_loss = self.distillation_weight * distillation_loss
-        else:
-            distillation_loss = torch.zeros(student.size(0), device=student.device)
-            for i in range(student.size(0)):
-                size = min(student_answer_size[i], teacher_answer_size[i])
-                distillation_loss[i] = abs(student[i][:size] - teacher[i][:size]).sum(-1).mean(-1)
-            distillation_loss = distillation_loss.mean()
-            distillation_loss = self.distillation_weight * (distillation_loss)
+        distillation_loss = torch.zeros(student.size(0), device=student.device)
+        for i in range(student.size(0)):
+            size = min(student_answer_size[i], teacher_answer_size[i])
+            distillation_loss[i] = abs(student[i][:size] - teacher[i][:size]).sum(-1).mean(-1)
+        distillation_loss = distillation_loss.mean()
+        distillation_loss = self.distillation_weight * (distillation_loss)
 
         if self.debug and rank == self.debug_rank:
             print("--------------------------------------")

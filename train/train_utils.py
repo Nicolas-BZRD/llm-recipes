@@ -49,7 +49,7 @@ def train(model, train_dataloader, eval_dataloader, optimizer, lr_scheduler, gra
 
     # Init distillation loss if distillation is enabled
     if train_config.distillation:
-        distillation_loss = DistillationLoss(distillation_weight=distil_config.distil_factor, student_temperature=distil_config.student_temperature, teacher_temperature=distil_config.teacher_temperature, skip_student_eos=True, soft_dtw=distil_config.dtw, debug=True, debug_rank=0, tokenizer_student=model.student.name_or_path, tokenizer_teacher=model.teacher.name_or_path)
+        distillation_loss = DistillationLoss(distillation_weight=distil_config.distil_factor, student_temperature=distil_config.student_temperature, teacher_temperature=distil_config.teacher_temperature, skip_student_eos=True, debug=True, debug_rank=0, tokenizer_student=model.student.name_or_path, tokenizer_teacher=model.teacher.name_or_path)
 
     # Create a gradient scaler for fp16
     if train_config.use_fp16 and train_config.enable_fsdp:
