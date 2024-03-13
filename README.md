@@ -31,7 +31,7 @@ For distillation, several parameters can be set:
 Below is an example command for running the distillation process:
 
 ```bash
-llm-recipes/finetuning.py --model_name EleutherAI/pythia-410m-deduped --dataset.file datasets/loader/fairytaleQA.py --lr 1e-6 --num_epochs 5 --batch_size_training 4 --val_batch_size 4 --output_dir train/output/path --distillation_config.model_name meta-llama/Llama-2-7b-chat-hf --distillation --distillation_config.enable_fsdp --distillation_config.pure_bf16 --distillation_config.distil_factor 1.5 --save_step 100
+llm-recipes/finetuning.py --model_name EleutherAI/pythia-410m-deduped --dataset.file datasets/loader/squad.py --lr 1e-6 --num_epochs 5 --batch_size_training 4 --val_batch_size 4 --output_dir train/output/path --distillation_config.model_name meta-llama/Llama-2-7b-chat-hf --distillation --distillation_config.enable_fsdp --distillation_config.pure_bf16 --distillation_config.distil_factor 1.5 --save_step 100
 ```
 
 In this example, the values for the parameters are replaced as follows:
@@ -42,7 +42,7 @@ In this example, the values for the parameters are replaced as follows:
 - `batch_size_training`: 4
 - `val_batch_size`: 4
 - `distil_factor`: 1.5
-- `dataset`: llm-distillation/datasets/loader/fairytaleQA.py
+- `dataset`: llm-distillation/datasets/loader/squad.py
 
 ## Dataset File
 
